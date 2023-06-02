@@ -26,6 +26,22 @@ const {
 const { ParallelLoginError } = require('./AuthenticationErrors')
 const { hasAdminAccess } = require('../Helpers/AdminAuthorizationHelper')
 const Modules = require('../../infrastructure/Modules')
+const { Issuer, generators } = require('openid-client')
+
+let client;
+
+Issuer.discover(process.env.SHARELATEX_OIDC_AUTH_URL)
+  .then(issuer => {
+    client = new issuer.Client({
+      client_id: process.env.SHARELATEX_OIDC_CLIENT_ID,
+      client_secret: process.env.SHARELATEX_OIDC_CLIENT_SECRET,
+      redirect_uris: [process.env.SHARELATEX_OIDC_REDIRECT_URL],
+      response_types: ['code'],
+    });
+  })
+  .catch(error => {
+    console.error('Error setting up OIDC client:', error);
+  });
 
 function send401WithChallenge(res) {
   res.setHeader('WWW-Authenticate', 'OverleafLogin')
@@ -550,6 +566,61 @@ const AuthenticationController = {
     if (req.session != null) {
       delete req.session.postLoginRedirect
     }
+  },
+
+  oidcRedirect(req, res, next) {
+    const oidc_allowed = process.env.SHARELATEX_OIDC_ENABLED || 'false';
+    if (oidc_allowed === 'true') {
+      const code_verifier = generators.codeVerifier();
+      const code_challenge = generators.codeChallenge(code_verifier);
+      req.session.code_verifier = code_verifier;
+
+      const authorizationUrl = client.authorizationUrl({
+        scope: process.env.SHARELATEX_OIDC_SCOPE,
+        code_challenge,
+        code_challenge_method: 'S256',
+      });
+
+      res.redirect(authorizationUrl);
+    } else {
+      res.sendStatus(404);
+    }
+  },
+  oidcCallback(req, res, next) {
+    const oidc_allowed = process.env.SHARELATEX_OIDC_ENABLED || 'false';
+    if (oidc_allowed === 'false') {
+      res.sendStatus(404);
+      return;
+    }
+
+    client
+      .callback(
+        process.env.SHARELATEX_OIDC_REDIRECT_URL,
+        req.query,
+        {
+          code_verifier: req.session.code_verifier,
+        },
+        {
+          exchangeBody: {
+            scope: process.env.SHARELATEX_OIDC_SCOPE,
+          },
+        }
+      )
+      .then(tokenSet => {
+        client.userinfo(tokenSet.access_token).then(userInfo => {
+          AuthenticationManager.createUserIfNotExist(userInfo, (error, user) => {
+            if (error) {
+              res.json({ message: error });
+            } else {
+              AuthenticationController.finishLogin(user, req, res, next);
+            }
+          });
+        });
+      })
+      .catch(error => {
+        console.error('Error in OIDC callback:', error);
+        res.status(500).json({ message: 'Error in OIDC callback' });
+      });
   },
 }
 

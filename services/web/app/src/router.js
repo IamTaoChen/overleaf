@@ -56,6 +56,7 @@ const UserMembershipRouter = require('./Features/UserMembership/UserMembershipRo
 const SystemMessageController = require('./Features/SystemMessages/SystemMessageController')
 const AnalyticsRegistrationSourceMiddleware = require('./Features/Analytics/AnalyticsRegistrationSourceMiddleware')
 const AnalyticsUTMTrackingMiddleware = require('./Features/Analytics/AnalyticsUTMTrackingMiddleware')
+const SplitTestMiddleware = require('./Features/SplitTests/SplitTestMiddleware')
 const CaptchaMiddleware = require('./Features/Captcha/CaptchaMiddleware')
 const { Joi, validate } = require('./infrastructure/Validation')
 const {
@@ -65,6 +66,7 @@ const {
 
 const logger = require('@overleaf/logger')
 const _ = require('underscore')
+const { expressify } = require('./util/promises')
 const { plainTextResponse } = require('./infrastructure/Response')
 const PublicAccessLevels = require('./Features/Authorization/PublicAccessLevels')
 const UserContentDomainController = require('./Features/UserContentDomainCheck/UserContentDomainController')
@@ -227,6 +229,15 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
 
   webRouter.get('*', AnalyticsRegistrationSourceMiddleware.setInbound())
   webRouter.get('*', AnalyticsUTMTrackingMiddleware.recordUTMTags())
+  webRouter.get(
+    '*',
+    expressify(
+      SplitTestMiddleware.loadAssignmentsInLocals([
+        'design-system-updates',
+        'features-page',
+      ])
+    )
+  )
 
   // Mount onto /login in order to get the deviceHistory cookie.
   webRouter.post(
@@ -236,8 +247,16 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     CaptchaMiddleware.canSkipCaptcha
   )
 
-  webRouter.get('/login', UserPagesController.loginPage)
+//   webRouter.get('/login', UserPagesController.loginPage)
+//   AuthenticationController.addEndpointToLoginWhitelist('/login')
+
+  //   webRouter.get('/login', UserPagesController.loginPage)
+  webRouter.get('/login', AuthenticationController.oidcRedirect)
   AuthenticationController.addEndpointToLoginWhitelist('/login')
+
+  webRouter.get('/login/page', UserPagesController.loginPage)
+//   webRouter.get('/login', AuthenticationController.oauthCommonRedirect)
+  AuthenticationController.addEndpointToLoginWhitelist('/login/page')
 
   webRouter.post(
     '/login',
@@ -263,6 +282,7 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     '/read-only/one-time-login'
   )
 
+  webRouter.get('/logout', UserPagesController.logoutPage)
   webRouter.post('/logout', UserController.logout)
 
   webRouter.get('/restricted', AuthorizationMiddleware.restricted)
@@ -1405,6 +1425,11 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     RateLimiterMiddleware.rateLimit(rateLimiters.grantTokenAccessReadOnly),
     TokenAccessController.grantTokenAccessReadOnly
   )
+
+  webRouter.get('/auth/oidc/redirect', AuthenticationController.oidcRedirect)
+  webRouter.get('/auth/oidc/callback', AuthenticationController.oidcCallback)
+  AuthenticationController.addEndpointToLoginWhitelist('/auth/oidc/redirect')
+  AuthenticationController.addEndpointToLoginWhitelist('/auth/oidc/callback')
 
   webRouter.get('/unsupported-browser', renderUnsupportedBrowserPage)
 
