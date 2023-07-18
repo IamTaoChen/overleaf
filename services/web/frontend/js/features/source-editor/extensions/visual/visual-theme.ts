@@ -2,6 +2,9 @@ import { EditorView } from '@codemirror/view'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 
+/**
+ * A syntax highlighter for content types that are only styled in the visual editor.
+ */
 export const visualHighlightStyle = syntaxHighlighting(
   HighlightStyle.define([
     { tag: tags.link, class: 'ol-cm-link-text' },
@@ -85,17 +88,16 @@ export const visualTheme = EditorView.theme({
     padding: '0.5em',
     lineHeight: 'calc(var(--line-height) * 5/6)',
   },
-  '.ol-cm-author': {
-    display: 'inline-block',
-    maxWidth: '45%',
-    minWidth: '200px',
-    verticalAlign: 'top',
-    cursor: 'pointer',
+  '.ol-cm-authors': {
+    display: 'flex',
+    justifyContent: 'space-evenly',
+    gap: '0.5em',
+    flexWrap: 'wrap',
   },
-  '.ol-cm-author:not(:first-child)': {
+  '.ol-cm-author': {
+    cursor: 'pointer',
     display: 'inline-block',
-    marginLeft: '5%',
-    maxWidth: '45%',
+    minWidth: '150px',
   },
   '.ol-cm-icon-brace': {
     filter: 'grayscale(1)',
@@ -218,6 +220,12 @@ export const visualTheme = EditorView.theme({
   '.ol-cm-command-texttt': {
     fontFamily: 'monospace',
   },
+  '.ol-cm-command-textmd, .ol-cm-command-textmd > .ol-cm-command-textbf': {
+    fontWeight: 'normal',
+  },
+  '.ol-cm-command-textsf': {
+    fontFamily: 'var(--source-font-family)',
+  },
   '.ol-cm-command-underline': {
     textDecoration: 'underline',
   },
@@ -251,6 +259,12 @@ export const visualTheme = EditorView.theme({
   },
   '.ol-cm-caption-line .ol-cm-label': {
     marginRight: '1ch',
+  },
+  '.ol-cm-environment-verbatim': {
+    fontFamily: 'var(--source-font-family)',
+  },
+  '.ol-cm-environment-lstlisting': {
+    fontFamily: 'var(--source-font-family)',
   },
   '.ol-cm-tex': {
     textTransform: 'uppercase',
@@ -356,5 +370,23 @@ export const visualTheme = EditorView.theme({
     position: 'absolute',
     top: '18px',
     right: '18px',
+  },
+  '.ol-cm-footnote': {
+    display: 'inline-flex',
+    padding: '0 0.1em',
+    background: 'rgba(125, 125, 125, 0.25)',
+    borderRadius: '2px',
+    height: '1em',
+    cursor: 'pointer',
+    verticalAlign: 'text-top',
+    '&:not(.ol-cm-footnote-view):hover': {
+      background: 'rgba(125, 125, 125, 0.5)',
+    },
+    '&.ol-cm-footnote-view': {
+      height: 'auto',
+      verticalAlign: 'unset',
+      display: 'inline',
+      padding: '0 0.5em',
+    },
   },
 })
