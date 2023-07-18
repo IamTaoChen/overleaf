@@ -6,11 +6,12 @@ import {
 } from '@codemirror/view'
 import { EditorState, Range } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
-import { getEnvironmentName } from '../../utils/tree-operations/environments'
+import { getUnstarredEnvironmentName } from '../../utils/tree-operations/environments'
 import { centeringNodeForEnvironment } from '../../utils/tree-operations/figure'
 import { Tree } from '@lezer/common'
 
 /**
+ * A view plugin that decorates ranges of text with Mark decorations.
  * Mark decorations add attributes to elements within a range.
  */
 export const markDecorations = ViewPlugin.define(
@@ -102,12 +103,17 @@ export const markDecorations = ViewPlugin.define(
                 }
               }
             } else if (nodeRef.type.is('$Environment')) {
-              const environmentName = getEnvironmentName(nodeRef.node, state)
+              const environmentName = getUnstarredEnvironmentName(
+                nodeRef.node,
+                state
+              )
 
               switch (environmentName) {
                 case 'abstract':
                 case 'figure':
                 case 'table':
+                case 'verbatim':
+                case 'lstlisting':
                   {
                     const centered = Boolean(
                       centeringNodeForEnvironment(nodeRef)

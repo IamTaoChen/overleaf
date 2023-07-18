@@ -169,11 +169,9 @@ export const lstinlineTokenizer = new ExternalTokenizer(
       delimiter = CHAR_CLOSE_BRACE
     }
     input.advance()
-    let content = ''
     for (;;) {
-      let next = input.next
+      const next = input.next
       if (next === -1 || next === CHAR_NEWLINE) return
-      content += String.fromCharCode(next)
       input.advance()
       if (next === delimiter) break
     }
@@ -720,6 +718,8 @@ const equationArrayEnvNames = new Set([
   'cases*',
   'dcases',
   'dcases*',
+  'rcases',
+  'rcases*',
   'IEEEeqnarray',
   'IEEEeqnarray*',
 ])
@@ -739,6 +739,7 @@ const otherKnownEnvNames = {
   document: DocumentEnvName,
   tikzpicture: TikzPictureEnvName,
   figure: FigureEnvName,
+  'figure*': FigureEnvName,
   subfigure: FigureEnvName,
   enumerate: ListEnvName,
   itemize: ListEnvName,

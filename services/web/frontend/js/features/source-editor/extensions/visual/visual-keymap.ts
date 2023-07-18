@@ -1,7 +1,6 @@
 import { keymap } from '@codemirror/view'
 import { EditorSelection, Prec } from '@codemirror/state'
 import { ancestorNodeOfType } from '../../utils/tree-query'
-import { toggleRanges } from '../../commands/ranges'
 import {
   getIndentation,
   IndentContext,
@@ -13,6 +12,10 @@ import {
   indentIncrease,
 } from '../toolbar/commands'
 
+/**
+ * A keymap which provides behaviours for the visual editor,
+ * including lists and text formatting.
+ */
 export const visualKeymap = Prec.highest(
   keymap.of([
     // create a new list item with the same indentation
@@ -123,19 +126,6 @@ export const visualKeymap = Prec.highest(
       key: 'Shift-Tab',
       preventDefault: true,
       run: indentDecrease,
-    },
-    // Override bolding in RT mode
-    {
-      key: 'Ctrl-b',
-      mac: 'Mod-b',
-      preventDefault: true,
-      run: toggleRanges('\\textbf'),
-    },
-    {
-      key: 'Ctrl-i',
-      mac: 'Mod-i',
-      preventDefault: true,
-      run: toggleRanges('\\textit'),
     },
   ])
 )
