@@ -23,6 +23,7 @@ module.exports = {
     webRouter.get(
       '/user/subscription',
       AuthenticationController.requireLogin(),
+      PermissionsController.useCapabilities(),
       SubscriptionController.userSubscriptionPage
     )
 
@@ -66,6 +67,7 @@ module.exports = {
     // Team invites
     webRouter.get(
       '/subscription/invites/:token/',
+      PermissionsController.useCapabilities(),
       TeamInvitesController.viewInvite
     )
     webRouter.put(
@@ -111,6 +113,7 @@ module.exports = {
     webRouter.post(
       '/user/subscription/reactivate',
       AuthenticationController.requireLogin(),
+      PermissionsController.useCapabilities(),
       SubscriptionController.reactivateSubscription
     )
 

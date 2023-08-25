@@ -1,3 +1,4 @@
+const Events = require('events')
 const Metrics = require('@overleaf/metrics')
 Metrics.initialize(process.env.METRICS_APP_NAME || 'filestore')
 
@@ -13,6 +14,8 @@ const keyBuilder = require('./app/js/KeyBuilder')
 const healthCheckController = require('./app/js/HealthCheckController')
 
 const RequestLogger = require('./app/js/RequestLogger')
+
+Events.setMaxListeners(20)
 
 const app = express()
 

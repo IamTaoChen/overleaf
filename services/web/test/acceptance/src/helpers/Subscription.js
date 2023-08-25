@@ -66,21 +66,16 @@ class Subscription {
     ManagedUsersHandler.enableManagedUsers(this._id, callback)
   }
 
-  getGroupPolicyForUser(user, callback) {
-    ManagedUsersHandler.getGroupPolicyForUser(user, callback)
+  getEnrollmentForUser(user, callback) {
+    ManagedUsersHandler.getEnrollmentForUser(user, callback)
   }
 
   getCapabilities(groupPolicy) {
     return PermissionsManager.getUserCapabilities(groupPolicy)
   }
 
-  getUserValidationStatus(user, groupPolicy, subscription, callback) {
-    PermissionsManager.getUserValidationStatus(
-      user,
-      groupPolicy,
-      subscription,
-      callback
-    )
+  getUserValidationStatus(params, callback) {
+    PermissionsManager.getUserValidationStatus(params, callback)
   }
 
   enrollManagedUser(user, callback) {

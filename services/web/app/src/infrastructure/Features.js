@@ -65,12 +65,10 @@ const Features = {
         return Boolean(Settings.enableGithubSync)
       case 'git-bridge':
         return Boolean(Settings.enableGitBridge)
-      case 'custom-togglers':
-        return Boolean(Settings.overleaf)
       case 'oauth':
         return Boolean(Settings.oauth)
       case 'templates-server-pro':
-        return !Settings.overleaf
+        return Boolean(Settings.templates)
       case 'affiliations':
       case 'analytics':
         return Boolean(_.get(Settings, ['apis', 'v1', 'url']))

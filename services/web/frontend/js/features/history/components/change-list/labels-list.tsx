@@ -1,7 +1,6 @@
 import { useUserContext } from '../../../../shared/context/user-context'
 import { isVersionSelected } from '../../utils/history-details'
 import { useMemo } from 'react'
-import { Version } from '../../services/types/update'
 import LabelListItem from './label-list-item'
 import useDropdownActiveItem from '../../hooks/use-dropdown-active-item'
 import { getVersionWithLabels } from '../../utils/label'
@@ -18,19 +17,16 @@ function LabelsList() {
     [labels]
   )
 
-  const selectedVersions = new Set<Version>(
-    Array.from(versionWithLabels.values(), value => value.version).filter(
-      version => isVersionSelected(selection, version)
-    )
-  )
-
-  const singleVersionSelected = selectedVersions.size === 1
-
   return (
     <>
       {versionWithLabels.map(({ version, labels }) => {
-        const selected = selectedVersions.has(version)
-        const dropdownActive = version === activeDropdownItem.item
+        const selected = isVersionSelected(selection, version)
+        const dropdownActive =
+          version === activeDropdownItem.item &&
+          activeDropdownItem.whichDropDown === 'moreOptions'
+        const compareDropdownActive =
+          version === activeDropdownItem.item &&
+          activeDropdownItem.whichDropDown === 'compare'
 
         return (
           <LabelListItem
@@ -40,10 +36,14 @@ function LabelsList() {
             currentUserId={currentUserId}
             projectId={projectId}
             selected={selected}
-            selectable={!(singleVersionSelected && selected)}
+            selectable={selected !== 'selected'}
             setSelection={setSelection}
             dropdownOpen={activeDropdownItem.isOpened && dropdownActive}
             dropdownActive={dropdownActive}
+            compareDropdownActive={compareDropdownActive}
+            compareDropdownOpen={
+              activeDropdownItem.isOpened && compareDropdownActive
+            }
             setActiveDropdownItem={setActiveDropdownItem}
             closeDropdownForItem={closeDropdownForItem}
           />

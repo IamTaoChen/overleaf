@@ -1,13 +1,42 @@
 'use strict'
 
-const BPromise = require('bluebird')
 const _ = require('lodash')
-
 const assert = require('check-types').assert
 const OError = require('@overleaf/o-error')
+const pMap = require('p-map')
 
 const File = require('./file')
 const safePathname = require('./safe_pathname')
+
+class PathnameError extends OError {}
+
+class NonUniquePathnameError extends PathnameError {
+  constructor(pathnames) {
+    super('pathnames are not unique: ' + pathnames, { pathnames })
+    this.pathnames = pathnames
+  }
+}
+
+class BadPathnameError extends PathnameError {
+  constructor(pathname) {
+    super(pathname + ' is not a valid pathname', { pathname })
+    this.pathname = pathname
+  }
+}
+
+class PathnameConflictError extends PathnameError {
+  constructor(pathname) {
+    super(`pathname '${pathname}' conflicts with another file`, { pathname })
+    this.pathname = pathname
+  }
+}
+
+class FileNotFoundError extends PathnameError {
+  constructor(pathname) {
+    super(`file ${pathname} does not exist`, { pathname })
+    this.pathname = pathname
+  }
+}
 
 /**
  * A set of {@link File}s. Several properties are enforced on the pathnames:
@@ -26,10 +55,17 @@ const safePathname = require('./safe_pathname')
  * 3. No type conflicts: A pathname cannot refer to both a file and a directory
  * within the same snapshot. That is, you can't have pathnames `a` and `a/b` in
  * the same file map; {@see FileMap#wouldConflict}.
- *
- * @param {Object.<String, File>} files
  */
 class FileMap {
+  static PathnameError = PathnameError
+  static NonUniquePathnameError = NonUniquePathnameError
+  static BadPathnameError = BadPathnameError
+  static PathnameConflictError = PathnameConflictError
+  static FileNotFoundError = FileNotFoundError
+
+  /**
+   * @param {Object.<String, File>} files
+   */
   constructor(files) {
     // create bare object for use as Map
     // http://ryanmorr.com/true-hash-maps-in-javascript/
@@ -196,59 +232,23 @@ class FileMap {
    * Map the files in this map to new values asynchronously, with an optional
    * limit on concurrency.
    * @param {function} iteratee like for _.mapValues
-   * @param {number} [concurrency] as for BPromise.map
-   * @return {Object}
+   * @param {number} [concurrency]
+   * @return {Promise<Object>}
    */
-  mapAsync(iteratee, concurrency) {
+  async mapAsync(iteratee, concurrency) {
     assert.maybe.number(concurrency, 'bad concurrency')
 
     const pathnames = this.getPathnames()
-    return BPromise.map(
+    const files = await pMap(
       pathnames,
       file => {
         return iteratee(this.getFile(file), file, pathnames)
       },
       { concurrency: concurrency || 1 }
-    ).then(files => {
-      return _.zipObject(pathnames, files)
-    })
+    )
+    return _.zipObject(pathnames, files)
   }
 }
-
-class PathnameError extends OError {}
-FileMap.PathnameError = PathnameError
-
-class NonUniquePathnameError extends PathnameError {
-  constructor(pathnames) {
-    super('pathnames are not unique: ' + pathnames, { pathnames })
-    this.pathnames = pathnames
-  }
-}
-FileMap.NonUniquePathnameError = NonUniquePathnameError
-
-class BadPathnameError extends PathnameError {
-  constructor(pathname) {
-    super(pathname + ' is not a valid pathname', { pathname })
-    this.pathname = pathname
-  }
-}
-FileMap.BadPathnameError = BadPathnameError
-
-class PathnameConflictError extends PathnameError {
-  constructor(pathname) {
-    super(`pathname '${pathname}' conflicts with another file`, { pathname })
-    this.pathname = pathname
-  }
-}
-FileMap.PathnameConflictError = PathnameConflictError
-
-class FileNotFoundError extends PathnameError {
-  constructor(pathname) {
-    super(`file ${pathname} does not exist`, { pathname })
-    this.pathname = pathname
-  }
-}
-FileMap.FileNotFoundError = FileNotFoundError
 
 function pathnamesEqual(pathname0, pathname1) {
   return pathname0 === pathname1

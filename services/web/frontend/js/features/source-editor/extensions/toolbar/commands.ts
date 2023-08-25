@@ -1,5 +1,5 @@
 import { EditorSelection, EditorState, SelectionRange } from '@codemirror/state'
-import { Command } from '@codemirror/view'
+import { Command, EditorView } from '@codemirror/view'
 import {
   closeSearchPanel,
   openSearchPanel,
@@ -17,32 +17,47 @@ import {
 import { snippet } from '@codemirror/autocomplete'
 import { snippets } from './snippets'
 import { minimumListDepthForSelection } from '../../utils/tree-operations/ancestors'
+import { isVisual } from '../visual/visual'
 
 export const toggleBold = toggleRanges('\\textbf')
 export const toggleItalic = toggleRanges('\\textit')
-export const wrapInHref = wrapRanges('\\href{}{', '}', false, range =>
-  EditorSelection.cursor(range.from - 2)
+
+// TODO: apply as a snippet?
+// TODO: read URL from clipboard?
+export const wrapInHref = wrapRanges('\\href{}{', '}', false, (range, view) =>
+  isVisual(view) ? range : EditorSelection.cursor(range.from - 2)
 )
 export const toggleBulletList = toggleListForRanges('itemize')
 export const toggleNumberedList = toggleListForRanges('enumerate')
 export const wrapInInlineMath = wrapRanges('\\(', '\\)')
 export const wrapInDisplayMath = wrapRanges('\n\\[', '\\]\n')
 
-export const ensureEmptyLine = (state: EditorState, range: SelectionRange) => {
+export const ensureEmptyLine = (
+  state: EditorState,
+  range: SelectionRange,
+  direction: 'above' | 'below' = 'below'
+) => {
   let pos = range.anchor
   let suffix = ''
+  let prefix = ''
 
   const line = state.doc.lineAt(pos)
 
   if (line.text.trim().length) {
-    pos = Math.min(line.to + 1, state.doc.length)
-    const nextLine = state.doc.lineAt(pos)
+    if (direction === 'below') {
+      pos = Math.min(line.to + 1, state.doc.length)
+    } else {
+      pos = Math.max(line.from - 1, 0)
+    }
+    const neighbouringLine = state.doc.lineAt(pos)
 
-    if (nextLine.length) {
+    if (neighbouringLine.length && direction === 'below') {
       suffix = '\n'
+    } else if (neighbouringLine.length && direction === 'above') {
+      prefix = '\n'
     }
   }
-  return { pos, suffix }
+  return { pos, suffix, prefix }
 }
 
 export const insertFigure: Command = view => {
@@ -53,10 +68,18 @@ export const insertFigure: Command = view => {
   return true
 }
 
-export const insertTable: Command = view => {
+export const insertTable = (view: EditorView, sizeX: number, sizeY: number) => {
   const { state, dispatch } = view
   const { pos, suffix } = ensureEmptyLine(state, state.selection.main)
-  const template = `\n${snippets.table}\n${suffix}`
+  const template = `\n\\begin{table}[#{}]
+\t\\centering
+\\begin{tabular}{${'c'.repeat(sizeX)}}
+${('\t\t' + '#{} & #{}'.repeat(sizeX - 1) + '\\\\\n').repeat(
+  sizeY
+)}\\end{tabular}
+\t\\caption{Caption}
+\t\\label{tab:my_label}
+\\end{table}${suffix}`
   snippet(template)({ state, dispatch }, { label: 'Table' }, pos, pos)
   return true
 }

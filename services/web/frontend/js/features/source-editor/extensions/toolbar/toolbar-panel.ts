@@ -71,6 +71,7 @@ export const toolbarPanel = () => [
       },
       '& .list-group': {
         marginBottom: 0,
+        backgroundColor: 'var(--editor-toolbar-bg)',
       },
       '& .list-group-item': {
         width: '100%',
@@ -78,6 +79,12 @@ export const toolbarPanel = () => [
         display: 'flex',
         alignItems: 'center',
         gap: '5px',
+        color: 'var(--toolbar-btn-color)',
+        borderColor: 'var(--editor-toolbar-bg)',
+        background: 'none',
+        '&:hover, &:focus': {
+          backgroundColor: 'rgba(125, 125, 125, 0.2)',
+        },
       },
     },
     '.ol-cm-toolbar-button-group': {
@@ -247,6 +254,43 @@ export const toolbarPanel = () => [
           fontWeight: 'normal',
         },
       },
+    },
+    '&.overall-theme-dark .ol-cm-toolbar-table-grid-popover': {
+      color: '#fff',
+    },
+    '&.overall-theme-dark .ol-cm-toolbar-table-grid': {
+      '& td.active': {
+        outlineColor: 'white',
+        background: 'rgb(125, 125, 125)',
+      },
+    },
+    '.ol-cm-toolbar-table-grid': {
+      borderCollapse: 'separate',
+      tableLayout: 'fixed',
+      fontSize: '6px',
+      cursor: 'pointer',
+      width: '160px',
+      '& td': {
+        outline: '1px solid #E7E9EE',
+        outlineOffset: '-2px',
+        width: '16px',
+        height: '16px',
+
+        '&.active': {
+          outlineColor: '#3265B2',
+          background: '#F1F4F9',
+        },
+      },
+    },
+    '.ol-cm-toolbar-table-size-label': {
+      maxWidth: '160px',
+      fontFamily: 'Lato, sans-serif',
+      fontSize: '12px',
+    },
+    '.ol-cm-toolbar-table-grid-popover': {
+      padding: '8px',
+      marginLeft: '80px',
+      backgroundColor: 'var(--editor-toolbar-bg)',
     },
   }),
 ]

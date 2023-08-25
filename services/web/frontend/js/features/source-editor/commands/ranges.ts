@@ -23,7 +23,7 @@ export const wrapRanges =
     prefix: string,
     suffix: string,
     wrapWholeLine = false,
-    selection?: (range: SelectionRange) => SelectionRange
+    selection?: (range: SelectionRange, view: EditorView) => SelectionRange
   ) =>
   (view: EditorView): boolean => {
     if (view.state.readOnly) {
@@ -63,7 +63,7 @@ export const wrapRanges =
         )
 
         return {
-          range: selection ? selection(changedRange) : changedRange,
+          range: selection ? selection(changedRange, view) : changedRange,
           // create a single change, including the content
           changes: [
             {
@@ -467,7 +467,15 @@ export function toggleRanges(
               range.to === view.state.doc.length ? -1 : 1
             )
 
-        if (ancestorAtStartOfRange !== ancestorAtEndOfRange) {
+        const tree = ensureSyntaxTree(view.state, 1000)
+        const nodeAtFrom = tree?.resolveInner(range.from, 1)
+        const nodeAtTo = tree?.resolveInner(range.to, -1)
+        const isSingleNodeSelected = nodeAtFrom === nodeAtTo
+
+        if (
+          !isSingleNodeSelected &&
+          ancestorAtStartOfRange !== ancestorAtEndOfRange
+        ) {
           // But handle the exception of case 8
           const ancestorAtStartIsWrappingCommand =
             ancestorAtStartOfRange &&

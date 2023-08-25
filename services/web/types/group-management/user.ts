@@ -1,6 +1,6 @@
 export type UserEnrollment = {
-  managedBy: string
-  enrolledAt: Date
+  managedBy?: string
+  enrolledAt?: Date
 }
 
 export type User = {
@@ -10,6 +10,6 @@ export type User = {
   last_name: string
   invite: boolean
   last_active_at: Date
-  enrollment: UserEnrollment | undefined
-  isEntityAdmin: boolean | undefined
+  enrollment?: UserEnrollment
+  isEntityAdmin?: boolean
 }

@@ -4,10 +4,7 @@ import { EditorView } from '@codemirror/view'
 import { useEditorContext } from '../../../../shared/context/editor-context'
 import useScopeEventEmitter from '../../../../shared/hooks/use-scope-event-emitter'
 import { useLayoutContext } from '../../../../shared/context/layout-context'
-import {
-  minimumListDepthForSelection,
-  withinFormattingCommand,
-} from '../../utils/tree-operations/ancestors'
+import { withinFormattingCommand } from '../../utils/tree-operations/ancestors'
 import { ToolbarButton } from './toolbar-button'
 import { redo, undo } from '@codemirror/commands'
 import * as commands from '../../extensions/toolbar/commands'
@@ -17,6 +14,7 @@ import getMeta from '../../../../utils/meta'
 import { InsertFigureDropdown } from './insert-figure-dropdown'
 import { useTranslation } from 'react-i18next'
 import { MathDropdown } from './math-dropdown'
+import { TableInserterDropdown } from './table-inserter-dropdown'
 
 const isMac = /Mac/.test(window.navigator?.platform)
 
@@ -25,11 +23,17 @@ export const ToolbarItems: FC<{
   overflowed?: Set<string>
   languageName?: string
   visual: boolean
-}> = memo(function ToolbarItems({ state, overflowed, languageName, visual }) {
+  listDepth: number
+}> = memo(function ToolbarItems({
+  state,
+  overflowed,
+  languageName,
+  visual,
+  listDepth,
+}) {
   const { t } = useTranslation()
   const { toggleSymbolPalette, showSymbolPalette } = useEditorContext()
   const isActive = withinFormattingCommand(state)
-  const listDepth = minimumListDepthForSelection(state)
   const addCommentEmitter = useScopeEventEmitter('comment:start_adding')
   const { setReviewPanelOpen } = useLayoutContext()
   const splitTestVariants = getMeta('ol-splitTestVariants', {})
@@ -49,6 +53,7 @@ export const ToolbarItems: FC<{
   )
 
   const showFigureModal = splitTestVariants['figure-modal'] === 'enabled'
+  const showTableGenerator = splitTestVariants['table-generator'] === 'enabled'
   const symbolPaletteAvailable = getMeta('ol-symbolPaletteAvailable')
   const showGroup = (group: string) => !overflowed || overflowed.has(group)
 
@@ -162,13 +167,7 @@ export const ToolbarItems: FC<{
                   icon="picture-o"
                 />
               )}
-              <ToolbarButton
-                id="toolbar-table"
-                label={t('toolbar_insert_table')}
-                command={commands.insertTable}
-                icon="table"
-                hidden
-              />
+              {showTableGenerator && <TableInserterDropdown />}
             </div>
           )}
           {showGroup('group-list') && (

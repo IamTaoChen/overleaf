@@ -1,29 +1,30 @@
 import moment from 'moment'
-import { useCallback } from 'react'
+import { type Dispatch, type SetStateAction, useCallback } from 'react'
 import { Col, Row } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
 import { User } from '../../../../../../types/group-management/user'
 import Badge from '../../../../shared/components/badge'
-import ManagedUserDropdownButton from './managed-user-dropdown-button'
 import Tooltip from '../../../../shared/components/tooltip'
+import type { ManagedUserAlert } from '../../utils/types'
+import { useGroupMembersContext } from '../../context/group-members-context'
 import ManagedUserStatus from './managed-user-status'
+import ManagedUserDropdownButton from './managed-user-dropdown-button'
 
 type ManagedUserRowProps = {
   user: User
-  selectUser: (user: User) => void
-  unselectUser: (user: User) => void
-  selected: boolean
   openOffboardingModalForUser: (user: User) => void
+  groupId: string
+  setManagedUserAlert: Dispatch<SetStateAction<ManagedUserAlert>>
 }
 
 export default function ManagedUserRow({
   user,
-  selectUser,
-  unselectUser,
-  selected,
   openOffboardingModalForUser,
+  setManagedUserAlert,
+  groupId,
 }: ManagedUserRowProps) {
   const { t } = useTranslation()
+  const { selectedUsers, selectUser, unselectUser } = useGroupMembersContext()
 
   const handleSelectUser = useCallback(
     (event, user) => {
@@ -35,6 +36,8 @@ export default function ManagedUserRow({
     },
     [selectUser, unselectUser]
   )
+
+  const selected = selectedUsers.includes(user)
 
   return (
     <li
@@ -98,15 +101,15 @@ export default function ManagedUserRow({
             : 'N/A'}
         </Col>
         <Col xs={2}>
-          <span className="pull-right">
+          <div className="managed-user-security">
             <ManagedUserStatus user={user} />
-            <span className="managed-user-actions">
-              <ManagedUserDropdownButton
-                user={user}
-                openOffboardingModalForUser={openOffboardingModalForUser}
-              />
-            </span>
-          </span>
+            <ManagedUserDropdownButton
+              user={user}
+              openOffboardingModalForUser={openOffboardingModalForUser}
+              setManagedUserAlert={setManagedUserAlert}
+              groupId={groupId}
+            />
+          </div>
         </Col>
       </Row>
     </li>

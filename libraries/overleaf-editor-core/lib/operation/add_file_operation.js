@@ -6,12 +6,10 @@ const File = require('../file')
 const Operation = require('./')
 
 /**
- * @classdesc
  * Adds a new file to a project.
  */
 class AddFileOperation extends Operation {
   /**
-   * @constructor
    * @param {string} pathname
    * @param {File} file
    */
@@ -61,14 +59,13 @@ class AddFileOperation extends Operation {
   }
 
   /** @inheritdoc */
-  loadFiles(kind, blobStore) {
-    return this.file.load(kind, blobStore)
+  async loadFiles(kind, blobStore) {
+    return await this.file.load(kind, blobStore)
   }
 
-  store(blobStore) {
-    return this.file.store(blobStore).then(rawFile => {
-      return { pathname: this.pathname, file: rawFile }
-    })
+  async store(blobStore) {
+    const rawFile = await this.file.store(blobStore)
+    return { pathname: this.pathname, file: rawFile }
   }
 
   /**

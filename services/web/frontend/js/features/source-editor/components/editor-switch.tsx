@@ -2,7 +2,6 @@ import { ChangeEvent, FC, memo, useCallback } from 'react'
 import useScopeValue from '../../../shared/hooks/use-scope-value'
 import Tooltip from '../../../shared/components/tooltip'
 import { sendMB } from '../../../infrastructure/event-tracking'
-import getMeta from '../../../utils/meta'
 import isValidTeXFile from '../../../main/is-valid-tex-file'
 import { useTranslation } from 'react-i18next'
 import SplitTestBadge from '../../../shared/components/split-test-badge'
@@ -12,12 +11,12 @@ function EditorSwitch() {
   const [newSourceEditor, setNewSourceEditor] = useScopeValue(
     'editor.newSourceEditor'
   )
-  const [richText, setRichText] = useScopeValue('editor.showRichText')
   const [visual, setVisual] = useScopeValue('editor.showVisual')
 
   const [docName] = useScopeValue('editor.open_doc_name')
   const richTextAvailable = isValidTeXFile(docName)
-  const richTextOrVisual = richText || (richTextAvailable && visual)
+  // TODO: rename this after legacy & toolbar split tests are complete
+  const richTextOrVisual = richTextAvailable && visual
 
   const handleChange = useCallback(
     event => {
@@ -25,33 +24,24 @@ function EditorSwitch() {
 
       switch (editorType) {
         case 'ace':
-          setRichText(false)
           setVisual(false)
           setNewSourceEditor(false)
           break
 
         case 'cm6':
-          setRichText(false)
           setVisual(false)
           setNewSourceEditor(true)
           break
 
         case 'rich-text':
-          if (getMeta('ol-richTextVariant') === 'cm6') {
-            setRichText(false)
-            setVisual(true)
-            setNewSourceEditor(true)
-          } else {
-            setRichText(true)
-            setVisual(false)
-          }
-
+          setVisual(true)
+          setNewSourceEditor(true)
           break
       }
 
       sendMB('editor-switch-change', { editorType })
     },
-    [setRichText, setVisual, setNewSourceEditor]
+    [setVisual, setNewSourceEditor]
   )
 
   return (
@@ -114,7 +104,7 @@ const RichTextToggle: FC<{
   if (disabled) {
     return (
       <Tooltip
-        description={t('rich_text_is_only_available_for_tex_files')}
+        description={t('visual_editor_is_only_available_for_tex_files')}
         id="rich-text-toggle-tooltip"
         overlayProps={{ placement: 'bottom' }}
         tooltipProps={{ className: 'tooltip-wide' }}

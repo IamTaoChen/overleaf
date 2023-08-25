@@ -8,13 +8,18 @@ import AggregateChangeEntry from './entries/aggregate-change-entry'
 import CommentEntry from './entries/comment-entry'
 import AddCommentEntry from './entries/add-comment-entry'
 import BulkActionsEntry from './entries/bulk-actions-entry/bulk-actions-entry'
-import {
-  useReviewPanelUpdaterFnsContext,
-  useReviewPanelValueContext,
-} from '../../context/review-panel/review-panel-context'
+import PositionedEntries from './positioned-entries'
+import { useReviewPanelValueContext } from '../../context/review-panel/review-panel-context'
 import useCodeMirrorContentHeight from '../../hooks/use-codemirror-content-height'
 import { ReviewPanelEntry } from '../../../../../../types/review-panel/entry'
-import { ThreadId } from '../../../../../../types/review-panel/review-panel'
+import {
+  ReviewPanelDocEntries,
+  ThreadId,
+} from '../../../../../../types/review-panel/review-panel'
+
+const isEntryAThreadId = (
+  entry: keyof ReviewPanelDocEntries
+): entry is ThreadId => entry !== 'add-comment' && entry !== 'bulk-actions'
 
 function CurrentFileContainer() {
   const {
@@ -26,9 +31,7 @@ function CurrentFileContainer() {
     users,
     entryHover,
     nVisibleSelectedChanges: nChanges,
-    toggleReviewPanel,
   } = useReviewPanelValueContext()
-  const { setEntryHover } = useReviewPanelUpdaterFnsContext()
   const contentHeight = useCodeMirrorContentHeight()
 
   const currentDocEntries =
@@ -36,12 +39,17 @@ function CurrentFileContainer() {
 
   const objectEntries = useMemo(() => {
     return Object.entries(currentDocEntries || {}) as Array<
-      [ThreadId, ReviewPanelEntry]
+      [keyof ReviewPanelDocEntries, ReviewPanelEntry]
     >
   }, [currentDocEntries])
 
   return (
-    <Container classNames={{ 'rp-collapsed-displaying-entry': entryHover }}>
+    <Container
+      classNames={{
+        'rp-collapsed-displaying-entry': entryHover,
+        'rp-current-file-container': true,
+      }}
+    >
       <div className="review-panel-tools">
         <Toolbar />
         <Nav />
@@ -53,9 +61,9 @@ function CurrentFileContainer() {
         tabIndex={0}
         aria-labelledby="review-panel-tab-current-file"
       >
-        <div
-          className="rp-entry-list-inner"
-          style={{ height: `${contentHeight}px` }}
+        <PositionedEntries
+          entries={objectEntries}
+          contentHeight={contentHeight}
         >
           {openDocId &&
             objectEntries.map(([id, entry]) => {
@@ -63,61 +71,73 @@ function CurrentFileContainer() {
                 return null
               }
 
-              if (entry.type === 'insert' || entry.type === 'delete') {
+              if (
+                isEntryAThreadId(id) &&
+                (entry.type === 'insert' || entry.type === 'delete')
+              ) {
                 return (
                   <ChangeEntry
                     key={id}
                     docId={openDocId}
-                    entry={entry}
+                    entryId={id}
                     permissions={permissions}
                     user={users[entry.metadata.user_id]}
-                    onMouseEnter={setEntryHover.bind(null, true)}
-                    onMouseLeave={setEntryHover.bind(null, false)}
-                    onIndicatorClick={toggleReviewPanel}
+                    content={entry.content}
+                    offset={entry.offset}
+                    type={entry.type}
+                    focused={entry.focused}
+                    entryIds={entry.entry_ids}
+                    timestamp={entry.metadata.ts}
                   />
                 )
               }
 
-              if (entry.type === 'aggregate-change') {
+              if (isEntryAThreadId(id) && entry.type === 'aggregate-change') {
                 return (
                   <AggregateChangeEntry
                     key={id}
                     docId={openDocId}
-                    entry={entry}
+                    entryId={id}
                     permissions={permissions}
                     user={users[entry.metadata.user_id]}
-                    onMouseEnter={setEntryHover.bind(null, true)}
-                    onMouseLeave={setEntryHover.bind(null, false)}
-                    onIndicatorClick={toggleReviewPanel}
+                    content={entry.content}
+                    replacedContent={entry.metadata.replaced_content}
+                    offset={entry.offset}
+                    focused={entry.focused}
+                    entryIds={entry.entry_ids}
+                    timestamp={entry.metadata.ts}
                   />
                 )
               }
 
-              if (entry.type === 'comment' && !loadingThreads) {
+              if (
+                isEntryAThreadId(id) &&
+                entry.type === 'comment' &&
+                !loadingThreads
+              ) {
                 return (
                   <CommentEntry
                     key={id}
                     docId={openDocId}
-                    entry={entry}
+                    threadId={entry.thread_id}
+                    thread={commentThreads[entry.thread_id]}
                     entryId={id}
+                    offset={entry.offset}
+                    focused={entry.focused}
                     permissions={permissions}
-                    threads={commentThreads}
-                    onMouseEnter={setEntryHover.bind(null, true)}
-                    onMouseLeave={setEntryHover.bind(null, false)}
-                    onIndicatorClick={toggleReviewPanel}
                   />
                 )
               }
 
               if (entry.type === 'add-comment' && permissions.comment) {
-                return <AddCommentEntry key={id} entry={entry} />
+                return <AddCommentEntry key={id} entryId={entry.type} />
               }
 
               if (entry.type === 'bulk-actions') {
                 return (
                   <BulkActionsEntry
                     key={id}
-                    entry={entry}
+                    entryId={entry.type}
                     nChanges={nChanges}
                   />
                 )
@@ -125,7 +145,7 @@ function CurrentFileContainer() {
 
               return null
             })}
-        </div>
+        </PositionedEntries>
       </div>
     </Container>
   )

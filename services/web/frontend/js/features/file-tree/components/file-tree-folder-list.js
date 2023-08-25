@@ -12,6 +12,7 @@ function FileTreeFolderList({
   classes = {},
   dropRef = null,
   children,
+  dataTestId,
 }) {
   files = files.map(file => ({ ...file, isFile: true }))
   const docsAndFiles = [...docs, ...files]
@@ -22,6 +23,7 @@ function FileTreeFolderList({
       role="tree"
       ref={dropRef}
       dnd-container="true"
+      data-testid={dataTestId}
     >
       {folders.sort(compareFunction).map(folder => {
         return (
@@ -60,6 +62,7 @@ FileTreeFolderList.propTypes = {
   }),
   dropRef: PropTypes.func,
   children: PropTypes.node,
+  dataTestId: PropTypes.string,
 }
 
 function compareFunction(one, two) {

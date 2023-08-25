@@ -3,6 +3,7 @@ import {
   Decoration,
   DecorationSet,
   EditorView,
+  ViewPlugin,
   WidgetType,
 } from '@codemirror/view'
 import { SyntaxNode, Tree } from '@lezer/common'
@@ -41,15 +42,28 @@ import { DividerWidget } from './visual-widgets/divider'
 import { PreambleWidget } from './visual-widgets/preamble'
 import { EndDocumentWidget } from './visual-widgets/end-document'
 import { EnvironmentLineWidget } from './visual-widgets/environment-line'
-import { ListEnvironmentName } from '../../utils/tree-operations/ancestors'
+import {
+  ListEnvironmentName,
+  ancestorOfNodeWithType,
+} from '../../utils/tree-operations/ancestors'
 import { InlineGraphicsWidget } from './visual-widgets/inline-graphics'
 import getMeta from '../../../../utils/meta'
 import { EditableGraphicsWidget } from './visual-widgets/editable-graphics'
 import { EditableInlineGraphicsWidget } from './visual-widgets/editable-inline-graphics'
-import { CloseBrace, OpenBrace } from '../../lezer-latex/latex.terms.mjs'
+import {
+  CloseBrace,
+  OpenBrace,
+  ShortTextArgument,
+  TextArgument,
+} from '../../lezer-latex/latex.terms.mjs'
 import { FootnoteWidget } from './visual-widgets/footnote'
 import { getListItems } from '../toolbar/lists'
 import { TildeWidget } from './visual-widgets/tilde'
+import { BeginTheoremWidget } from './visual-widgets/begin-theorem'
+import { parseTheoremArguments } from '../../utils/tree-operations/theorems'
+import { IndicatorWidget } from './visual-widgets/indicator'
+import { TabularWidget } from './visual-widgets/tabular'
+import { nextSnippetField, pickedCompletion } from '@codemirror/autocomplete'
 
 type Options = {
   fileTreeManager: {
@@ -121,6 +135,8 @@ const hasClosingBrace = (node: SyntaxNode) =>
 export const atomicDecorations = (options: Options) => {
   const splitTestVariants = getMeta('ol-splitTestVariants', {})
   const figureModalEnabled = splitTestVariants['figure-modal'] === 'enabled'
+  const tableGeneratorEnabled =
+    splitTestVariants['table-generator'] === 'enabled'
 
   const getPreviewByPath = (path: string) =>
     options.fileTreeManager.getPreviewByPath(path)
@@ -136,6 +152,15 @@ export const atomicDecorations = (options: Options) => {
 
     let listDepth = 0
 
+    const theoremEnvironments = new Map<string, string>([
+      ['theorem', 'Theorem'],
+      ['corollary', 'Corollary'],
+      ['lemma', 'lemma'],
+      ['proof', 'Proof'],
+    ])
+
+    let commandDefinitions = ''
+
     const preamble: {
       from: number
       to: number
@@ -148,67 +173,6 @@ export const atomicDecorations = (options: Options) => {
         content: string
       }[]
     } = { from: 0, to: 0, authors: [] }
-
-    // find the positions of the title and author in the preamble
-    tree.iterate({
-      enter(nodeRef) {
-        if (nodeRef.type.is('DocumentEnvironment')) {
-          // Attempt to include \begin{document} in the preamble
-          preamble.to = nodeRef.node.getChild('Content')?.from ?? nodeRef.from
-          return false
-        } else if (nodeRef.type.is('Title')) {
-          const node = nodeRef.node.getChild('TextArgument')
-          if (node) {
-            const content = state.sliceDoc(node.from, node.to)
-            preamble.title = { node, content }
-          }
-        } else if (nodeRef.type.is('Author')) {
-          const node = nodeRef.node.getChild('TextArgument')
-          if (node) {
-            const content = state.sliceDoc(node.from, node.to)
-            preamble.authors.push({ node, content })
-          }
-        }
-      },
-    })
-    if (preamble.to > 0) {
-      // hide the preamble. We use selectionIntersects directly, so that it also
-      // expands in readOnly mode.
-      const endLine = state.doc.lineAt(preamble.to).number
-      for (let lineNumber = 1; lineNumber <= endLine; ++lineNumber) {
-        const line = state.doc.line(lineNumber)
-        const classes = ['ol-cm-preamble-line']
-        if (lineNumber === 1) {
-          classes.push('ol-cm-environment-first-line')
-        }
-        if (lineNumber === endLine) {
-          classes.push('ol-cm-environment-last-line')
-        }
-        decorations.push(
-          Decoration.line({
-            class: classes.join(' '),
-          }).range(line.from)
-        )
-      }
-
-      const isExpanded = selectionIntersects(state.selection, preamble)
-      if (!isExpanded) {
-        decorations.push(
-          Decoration.replace({
-            widget: new PreambleWidget(preamble.to, isExpanded),
-            block: true,
-          }).range(0, preamble.to)
-        )
-      } else {
-        decorations.push(
-          Decoration.widget({
-            widget: new PreambleWidget(preamble.to, isExpanded),
-            block: true,
-            side: -1,
-          }).range(0)
-        )
-      }
-    }
 
     const startListEnvironment = (envName: ListEnvironmentName) => {
       if (currentListEnvironment) {
@@ -224,8 +188,35 @@ export const atomicDecorations = (options: Options) => {
       currentOrdinal = ordinalStack.pop() ?? 0
     }
 
+    let seenDocumentEnvironment = false
+
     tree.iterate({
       enter(nodeRef) {
+        if (nodeRef.node.type.is('Maketitle')) {
+          preamble.to = nodeRef.node.from
+        } else if (nodeRef.node.type.is('DocumentEnvironment')) {
+          // only count the first instance of DocumentEnvironment
+          if (!seenDocumentEnvironment) {
+            preamble.to =
+              nodeRef.node.getChild('Content')?.from ?? nodeRef.node.from
+            seenDocumentEnvironment = true
+          }
+        } else if (nodeRef.node.type.is('Title')) {
+          const node = nodeRef.node.getChild('TextArgument')
+          if (node) {
+            const content = state.sliceDoc(node.from, node.to)
+            preamble.title = { node, content }
+            preamble.to = nodeRef.node.to
+          }
+        } else if (nodeRef.node.type.is('Author')) {
+          const node = nodeRef.node.getChild('TextArgument')
+          if (node) {
+            const content = state.sliceDoc(node.from, node.to)
+            preamble.authors.push({ node, content })
+            preamble.to = nodeRef.node.to
+          }
+        }
+
         if (nodeRef.type.is('$Environment')) {
           const envName = getUnstarredEnvironmentName(nodeRef.node, state)
           const hideInEnvironmentTypes = [
@@ -233,6 +224,10 @@ export const atomicDecorations = (options: Options) => {
             'table',
             'verbatim',
             'lstlisting',
+            'quote',
+            'quotation',
+            'quoting',
+            'displayquote',
           ]
           if (envName && hideInEnvironmentTypes.includes(envName)) {
             const beginNode = nodeRef.node.getChild('BeginEnv')
@@ -319,10 +314,34 @@ export const atomicDecorations = (options: Options) => {
                 )
               }
             }
+          } else if (
+            tableGeneratorEnabled &&
+            nodeRef.type.is('TabularEnvironment')
+          ) {
+            if (shouldDecorate(state, nodeRef)) {
+              const tableNode = ancestorOfNodeWithType(
+                nodeRef.node,
+                'TableEnvironment'
+              )
+              decorations.push(
+                Decoration.replace({
+                  widget: new TabularWidget(
+                    nodeRef.node,
+                    state.doc.sliceString(
+                      (tableNode ?? nodeRef).from,
+                      (tableNode ?? nodeRef).to
+                    ),
+                    tableNode
+                  ),
+                  block: true,
+                }).range(nodeRef.from, nodeRef.to)
+              )
+              return false
+            }
           }
         } else if (nodeRef.type.is('BeginEnv')) {
           // the beginning of an environment, with an environment name argument
-          const envName = getEnvironmentName(nodeRef.node, state)
+          const envName = getUnstarredEnvironmentName(nodeRef.node, state)
 
           if (envName) {
             switch (envName) {
@@ -398,7 +417,28 @@ export const atomicDecorations = (options: Options) => {
                 }
                 break
               default:
-                // do nothing
+                {
+                  const theoremName = theoremEnvironments.get(envName)
+
+                  if (theoremName && shouldDecorate(state, nodeRef)) {
+                    const argumentNode = nodeRef.node
+                      .getChild('OptionalArgument')
+                      ?.getChild('ShortOptionalArg')
+
+                    decorations.push(
+                      Decoration.replace({
+                        widget: new BeginTheoremWidget(
+                          envName,
+                          theoremName,
+                          argumentNode
+                        ),
+                        block: true,
+                      }).range(nodeRef.from, nodeRef.to)
+                    )
+                  }
+
+                  // do nothing
+                }
                 break
             }
           }
@@ -447,6 +487,16 @@ export const atomicDecorations = (options: Options) => {
                 }
                 break
               default:
+                if (theoremEnvironments.has(envName)) {
+                  if (shouldDecorate(state, nodeRef)) {
+                    decorations.push(
+                      Decoration.replace({
+                        widget: new EndWidget(),
+                        block: true,
+                      }).range(nodeRef.from, nodeRef.to)
+                    )
+                  }
+                }
                 // do nothing
                 break
             }
@@ -521,6 +571,22 @@ export const atomicDecorations = (options: Options) => {
           }
 
           return false // no markup in verbatim content
+        } else if (
+          nodeRef.type.is('NewCommand') ||
+          nodeRef.type.is('RenewCommand')
+        ) {
+          const argumentNode = nodeRef.node.getChild('LiteralArgContent')
+          if (argumentNode) {
+            const argument = state
+              .sliceDoc(argumentNode.from, argumentNode.to)
+              .trim()
+            if (/^\\\w+/.test(argument)) {
+              const content = state.sliceDoc(nodeRef.from, nodeRef.to)
+              if (content) {
+                commandDefinitions += `${content}\n`
+              }
+            }
+          }
         } else if (nodeRef.type.is('Cite')) {
           // \cite command with a bibkey argument
           if (shouldDecorate(state, nodeRef)) {
@@ -540,19 +606,24 @@ export const atomicDecorations = (options: Options) => {
           return false // no markup in cite content
         } else if (nodeRef.type.is('Ref')) {
           // \ref command with a ref label argument
-          if (shouldDecorate(state, nodeRef)) {
-            const argumentNode = nodeRef.node
-              .getChild('RefArgument')
-              ?.getChild('ShortTextArgument')
 
-            decorations.push(
-              ...decorateArgumentBraces(
-                new IconBraceWidget('🏷'),
-                argumentNode,
-                nodeRef.from
-              )
+          const argumentNode = nodeRef.node
+            .getChild('RefArgument')
+            ?.getChild('ShortTextArgument')
+
+          const shouldShowBraces =
+            !shouldDecorate(state, nodeRef) ||
+            argumentNode?.from === argumentNode?.to
+
+          decorations.push(
+            ...decorateArgumentBraces(
+              new IconBraceWidget(shouldShowBraces ? '🏷{' : '🏷'),
+              argumentNode,
+              nodeRef.from,
+              true,
+              new BraceWidget(shouldShowBraces ? '}' : '')
             )
-          }
+          )
 
           return false // no markup in ref content
         } else if (nodeRef.type.is('Label')) {
@@ -666,7 +737,11 @@ export const atomicDecorations = (options: Options) => {
 
               decorations.push(
                 Decoration.replace({
-                  widget: new MathWidget(content, displayMode),
+                  widget: new MathWidget(
+                    content,
+                    displayMode,
+                    commandDefinitions
+                  ),
                   block: displayMode,
                 }).range(ancestorNode.from, ancestorNode.to)
               )
@@ -676,19 +751,56 @@ export const atomicDecorations = (options: Options) => {
           return false // never decorate inside math
         } else if (nodeRef.type.is('HrefCommand')) {
           // a hyperlink with URL and content arguments
-          if (shouldDecorate(state, nodeRef)) {
-            const urlArgument = nodeRef.node.getChild('UrlArgument')
-            const textArgument = nodeRef.node.getChild('ShortTextArgument')
+          const urlArgumentNode = nodeRef.node.getChild('UrlArgument')
+          const urlNode = urlArgumentNode?.getChild('LiteralArgContent')
+          const contentArgumentNode = nodeRef.node.getChild('ShortTextArgument')
+          const contentNode = contentArgumentNode?.getChild('ShortArg')
 
-            if (urlArgument) {
+          if (
+            urlArgumentNode &&
+            urlNode &&
+            contentArgumentNode &&
+            contentNode
+          ) {
+            const shouldShowBraces =
+              !shouldDecorate(state, nodeRef) ||
+              contentNode.from === contentNode.to
+
+            const url = state.sliceDoc(urlNode.from, urlNode.to)
+
+            // avoid decorating when the URL spans multiple lines, as the argument node is probably unclosed
+            if (!url.includes('\n')) {
               decorations.push(
                 ...decorateArgumentBraces(
-                  new BraceWidget(),
-                  textArgument,
-                  nodeRef.from
+                  new BraceWidget(shouldShowBraces ? '{' : ''),
+                  contentArgumentNode,
+                  nodeRef.from,
+                  true,
+                  new BraceWidget(shouldShowBraces ? '}' : '')
                 )
               )
             }
+          }
+        } else if (nodeRef.type.is('UrlCommand')) {
+          // a hyperlink with URL and content arguments
+          const argumentNode = nodeRef.node.getChild('UrlArgument')
+
+          if (argumentNode) {
+            const contentNode = argumentNode.getChild('LiteralArgContent')
+
+            const shouldShowBraces =
+              !shouldDecorate(state, nodeRef) ||
+              contentNode?.from === contentNode?.to
+
+            decorations.push(
+              ...decorateArgumentBraces(
+                new BraceWidget(shouldShowBraces ? '{' : ''),
+                argumentNode,
+                nodeRef.from,
+                false,
+                new BraceWidget(shouldShowBraces ? '}' : '')
+              )
+            )
           }
         } else if (nodeRef.type.is('Tilde')) {
           // a tilde (non-breaking space)
@@ -699,6 +811,17 @@ export const atomicDecorations = (options: Options) => {
               }).range(nodeRef.from, nodeRef.to)
             )
           }
+        } else if (nodeRef.type.is('LineBreak')) {
+          // line break
+          const optionalArgument = nodeRef.node.getChild('OptionalArgument')
+          if (!optionalArgument || shouldDecorate(state, optionalArgument)) {
+            decorations.push(
+              Decoration.replace({
+                widget: new IndicatorWidget('\u21A9'),
+              }).range(nodeRef.from, nodeRef.to)
+            )
+          }
+          return false
         } else if (nodeRef.type.is('Caption')) {
           if (shouldDecorate(state, nodeRef)) {
             // a caption
@@ -785,7 +908,7 @@ export const atomicDecorations = (options: Options) => {
           if (shouldDecorate(state, nodeRef)) {
             const line = state.doc.lineAt(nodeRef.from)
             const from = extendBackwardsOverEmptyLines(state.doc, line)
-            const to = extendForwardsOverEmptyLines(state.doc, line)
+            const { to } = state.doc.lineAt(nodeRef.to)
 
             if (shouldDecorate(state, { from, to })) {
               decorations.push(
@@ -817,6 +940,30 @@ export const atomicDecorations = (options: Options) => {
               }).range(from, nodeRef.to)
             )
             return false
+          }
+        } else if (nodeRef.type.is('NewTheoremCommand')) {
+          const result = parseTheoremArguments(state, nodeRef.node)
+          if (result) {
+            const { name, label } = result
+            theoremEnvironments.set(name, label)
+          }
+        } else if (
+          nodeRef.type.is('TextColorCommand') ||
+          nodeRef.type.is('ColorBoxCommand')
+        ) {
+          if (shouldDecorate(state, nodeRef)) {
+            const colorArgumentNode = nodeRef.node.getChild(ShortTextArgument)
+            const contentArgumentNode = nodeRef.node.getChild(TextArgument)
+            if (colorArgumentNode && contentArgumentNode) {
+              // command name and opening brace
+              decorations.push(
+                ...decorateArgumentBraces(
+                  new BraceWidget(),
+                  contentArgumentNode,
+                  nodeRef.from
+                )
+              )
+            }
           }
         } else if (nodeRef.type.is('UnknownCommand')) {
           // a command that's not defined separately by the grammar
@@ -854,6 +1001,8 @@ export const atomicDecorations = (options: Options) => {
                   '\\texttt',
                   '\\textmd',
                   '\\textsf',
+                  '\\textsuperscript',
+                  '\\textsubscript',
                   '\\sout',
                   '\\emph',
                 ].includes(commandName)
@@ -866,18 +1015,6 @@ export const atomicDecorations = (options: Options) => {
                       nodeRef.from
                     )
                   )
-                }
-              } else if (commandName === '\\url') {
-                if (shouldDecorate(state, nodeRef)) {
-                  // command name and opening brace
-                  decorations.push(
-                    ...decorateArgumentBraces(
-                      new BraceWidget(),
-                      textArgumentNode,
-                      nodeRef.from
-                    )
-                  )
-                  return false
                 }
               } else if (
                 commandName === '\\footnote' ||
@@ -953,6 +1090,44 @@ export const atomicDecorations = (options: Options) => {
       },
     })
 
+    if (preamble.to > 0) {
+      // hide the preamble. We use selectionIntersects directly, so that it also
+      // expands in readOnly mode.
+      const endLine = state.doc.lineAt(preamble.to).number
+      for (let lineNumber = 1; lineNumber <= endLine; ++lineNumber) {
+        const line = state.doc.line(lineNumber)
+        const classes = ['ol-cm-preamble-line']
+        if (lineNumber === 1) {
+          classes.push('ol-cm-environment-first-line')
+        }
+        if (lineNumber === endLine) {
+          classes.push('ol-cm-environment-last-line')
+        }
+        decorations.push(
+          Decoration.line({
+            class: classes.join(' '),
+          }).range(line.from)
+        )
+      }
+
+      const isExpanded = selectionIntersects(state.selection, preamble)
+      if (!isExpanded) {
+        decorations.push(
+          Decoration.replace({
+            widget: new PreambleWidget(preamble.to, isExpanded),
+            block: true,
+          }).range(0, preamble.to)
+        )
+      } else {
+        decorations.push(
+          Decoration.widget({
+            widget: new PreambleWidget(preamble.to, isExpanded),
+            block: true,
+            side: -1,
+          }).range(0)
+        )
+      }
+    }
     return Decoration.set(decorations, true)
   }
 
@@ -1014,6 +1189,17 @@ export const atomicDecorations = (options: Options) => {
         return [
           EditorView.decorations.from(field, field => field.decorations),
           EditorView.atomicRanges.from(field, value => () => value.decorations),
+          ViewPlugin.define(view => {
+            return {
+              update(update) {
+                for (const tr of update.transactions) {
+                  if (tr.annotation(pickedCompletion)?.label === '\\href{}{}') {
+                    window.setTimeout(() => nextSnippetField(view))
+                  }
+                }
+              },
+            }
+          }),
         ]
       },
     }),

@@ -58,6 +58,7 @@
     DocumentClassCtrlSeq,
     UsePackageCtrlSeq,
     HrefCtrlSeq,
+    UrlCtrlSeq,
     VerbCtrlSeq,
     LstInlineCtrlSeq,
     IncludeGraphicsCtrlSeq,
@@ -81,11 +82,20 @@
     InputCtrlSeq,
     IncludeCtrlSeq,
     ItemCtrlSeq,
+    NewTheoremCtrlSeq,
+    TheoremStyleCtrlSeq,
     CenteringCtrlSeq,
     BibliographyCtrlSeq,
     BibliographyStyleCtrlSeq,
     AuthorCtrlSeq,
-    MaketitleCtrlSeq
+    MaketitleCtrlSeq,
+    TextColorCtrlSeq,
+    ColorBoxCtrlSeq,
+    HLineCtrlSeq,
+    TopRuleCtrlSeq,
+    MidRuleCtrlSeq,
+    BottomRuleCtrlSeq,
+    MultiColumnCtrlSeq
 }
 
 @external specialize {EnvName} specializeEnvName from "./tokens.mjs" {
@@ -96,14 +106,16 @@
     VerbatimEnvName,
     TikzPictureEnvName,
     FigureEnvName,
-    ListEnvName
+    ListEnvName,
+    TableEnvName
 }
 
 @external specialize {CtrlSym} specializeCtrlSym from "./tokens.mjs" {
     OpenParenCtrlSym,
     CloseParenCtrlSym,
     OpenBracketCtrlSym,
-    CloseBracketCtrlSym
+    CloseBracketCtrlSym,
+    LineBreakCtrlSym
 }
 
 @tokens {
@@ -178,6 +190,10 @@ PackageArgument {
     !argument ShortTextArgument
 }
 
+TabularArgument {
+    !argument OpenBrace TabularContent CloseBrace
+}
+
 UrlArgument {
     OpenBrace LiteralArgContent CloseBrace
 }
@@ -211,6 +227,10 @@ MacroParameter {
     "#" ("1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
 }
 
+OptionalMacroParameter {
+    OpenBracket MacroParameter CloseBracket
+}
+
 // The autocompletion code in services/web/frontend/js/features/source-editor/utils/tree-operations/commands.ts
 // depends on following the `KnownCommand { Command { CommandCtrlSeq [args] } }`
 // structure
@@ -237,8 +257,23 @@ KnownCommand {
         UsePackageCtrlSeq optionalWhitespace? OptionalArgument?
         PackageArgument
     } |
+    TextColorCommand {
+        TextColorCtrlSeq optionalWhitespace? ShortTextArgument optionalWhitespace? TextArgument
+    } |
+    ColorBoxCommand {
+        ColorBoxCtrlSeq optionalWhitespace? ShortTextArgument optionalWhitespace? TextArgument
+    } |
     HrefCommand {
         HrefCtrlSeq optionalWhitespace? UrlArgument ShortTextArgument
+    } |
+    NewTheoremCommand {
+        NewTheoremCtrlSeq "*"? optionalWhitespace? ShortTextArgument ((OptionalArgument? TextArgument) | (TextArgument OptionalArgument))
+    } |
+    TheoremStyleCommand {
+        TheoremStyleCtrlSeq optionalWhitespace? ShortTextArgument
+    } |
+    UrlCommand {
+        UrlCtrlSeq optionalWhitespace? UrlArgument
     } |
     VerbCommand {
         VerbCtrlSeq VerbContent
@@ -264,7 +299,7 @@ KnownCommand {
     } |
     Def {
         // allow more general Csname argument to \def commands, since other symbols such as '@' are often used in definitions
-        DefCtrlSeq (Csname | CtrlSym) optionalWhitespace? MacroParameter* optionalWhitespace? DefinitionArgument
+        DefCtrlSeq optionalWhitespace? (Csname | CtrlSym) optionalWhitespace? (MacroParameter | OptionalMacroParameter)* optionalWhitespace? DefinitionArgument
     } |
     Hbox {
         HboxCtrlSeq optionalWhitespace? TextArgument
@@ -315,6 +350,15 @@ KnownCommand {
     } |
     Maketitle {
         MaketitleCtrlSeq optionalWhitespace?
+    } |
+    HorizontalLine {
+        (HLineCtrlSeq | TopRuleCtrlSeq | MidRuleCtrlSeq | BottomRuleCtrlSeq) optionalWhitespace?
+    } |
+    MultiColumn {
+        MultiColumnCtrlSeq
+            optionalWhitespace? SpanArgument { ShortTextArgument }
+            optionalWhitespace? ColumnArgument { ShortTextArgument }
+            optionalWhitespace? TabularArgument
     }
 }
 
@@ -328,6 +372,13 @@ UnknownCommand {
 Command {
       KnownCommand
     | UnknownCommand
+    | KnownCtrlSym
+}
+
+KnownCtrlSym {
+    LineBreak {
+        LineBreakCtrlSym OptionalArgument?
+    }
 }
 
 textBase {
@@ -448,6 +499,7 @@ DefinitionFragment {
     | CloseParenCtrlSym
     | OpenBracketCtrlSym
     | CloseBracketCtrlSym
+    | KnownCtrlSym
     | BlankLine
     | NewLine
     | Normal
@@ -481,6 +533,7 @@ KnownEnvironment {
     | TikzPictureEnvironment
     | FigureEnvironment
     | ListEnvironment
+    | TableEnvironment
     )
 }
 
@@ -503,12 +556,20 @@ DocumentEnvironment[@isGroup="$Environment"] {
     (TrailingWhitespaceOnly | TrailingContent)?
 }
 
+TabularContent {
+    (textWithGroupsEnvironmentsAndBlankLines)*
+}
+
 TabularEnvironment[@isGroup="$Environment"] {
     BeginEnv<TabularEnvName>
-    Content<TabularContent {
-        (textWithGroupsEnvironmentsAndBlankLines)+
-    }>
+    Content<TabularContent>
     EndEnv<TabularEnvName>
+}
+
+TableEnvironment[@isGroup="$Environment"] {
+    BeginEnv<TableEnvName>
+    Content<Text>
+    EndEnv<TableEnvName>
 }
 
 EquationEnvironment[@isGroup="$Environment"] {
@@ -644,7 +705,7 @@ MathTextCommand {
 
 MathCommand { CtrlSeq }
 
-MathCtrlSym { CtrlSym }
+MathCtrlSym { CtrlSym | KnownCtrlSym }
 
 MathGroup {
     OpenBrace Math? CloseBrace

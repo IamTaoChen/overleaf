@@ -1,6 +1,6 @@
 import { ThreadId, UserId } from './review-panel'
 
-interface ReviewPanelEntryScreenPos {
+export interface ReviewPanelEntryScreenPos {
   y: number
   height: number
   editorPaddingTop: number
@@ -33,6 +33,10 @@ export interface ReviewPanelDeleteEntry
     ReviewPanelInsertOrDeleteEntry {
   type: 'delete'
 }
+
+export type ReviewPanelChangeEntry =
+  | ReviewPanelInsertEntry
+  | ReviewPanelDeleteEntry
 
 export interface ReviewPanelCommentEntry extends ReviewPanelBaseEntry {
   type: 'comment'

@@ -30,6 +30,7 @@ describe('SubscriptionController', function () {
       email: 'tom@yahoo.com',
       _id: 'one',
       signUpDate: new Date('2000-10-01'),
+      emails: [{ email: 'tom@yahoo.com', confirmedAt: new Date('2000-10-02') }],
     }
     this.activeRecurlySubscription =
       mockSubscriptions['subscription-123-active']
@@ -77,6 +78,7 @@ describe('SubscriptionController', function () {
       buildPlansList: sinon.stub(),
       promises: {
         buildUsersSubscriptionViewModel: sinon.stub().resolves({}),
+        getBestSubscription: sinon.stub().resolves({}),
       },
       buildPlansListForSubscriptionDash: sinon
         .stub()
@@ -128,6 +130,9 @@ describe('SubscriptionController', function () {
     this.SubscriptionHelper = {
       generateInitialLocalizedGroupPrice: sinon.stub(),
     }
+    this.Features = {
+      hasFeature: sinon.stub().returns(false),
+    }
     this.SubscriptionController = SandboxedModule.require(modulePath, {
       requires: {
         '../SplitTests/SplitTestHandler': this.SplitTestV2Hander,
@@ -158,10 +163,7 @@ describe('SubscriptionController', function () {
           recordEventForSession: sinon.stub(),
           setUserPropertyForUser: sinon.stub(),
         }),
-        '../../../../modules/managed-users/app/src/ManagedUsersManager':
-          (this.ManagedUsersManager = {
-            hasManagedUsersFeature: sinon.stub(),
-          }),
+        '../../infrastructure/Features': this.Features,
       },
     })
 
@@ -184,9 +186,7 @@ describe('SubscriptionController', function () {
     describe('groupPlanModal data', function () {
       it('should pass local currency if valid', function (done) {
         this.res.render = (page, opts) => {
-          page.should.equal(
-            'subscriptions/plans-marketing/st-personal-off-default/plans-marketing-v2'
-          )
+          page.should.equal('subscriptions/plans')
           opts.groupPlanModalDefaults.currency.should.equal('GBP')
           done()
         }
@@ -198,9 +198,7 @@ describe('SubscriptionController', function () {
 
       it('should fallback to USD when valid', function (done) {
         this.res.render = (page, opts) => {
-          page.should.equal(
-            'subscriptions/plans-marketing/st-personal-off-default/plans-marketing-v2'
-          )
+          page.should.equal('subscriptions/plans')
           opts.groupPlanModalDefaults.currency.should.equal('USD')
           done()
         }
@@ -212,9 +210,7 @@ describe('SubscriptionController', function () {
 
       it('should pass valid options for group plan modal and discard invalid', function (done) {
         this.res.render = (page, opts) => {
-          page.should.equal(
-            'subscriptions/plans-marketing/st-personal-off-default/plans-marketing-v2'
-          )
+          page.should.equal('subscriptions/plans')
           opts.groupPlanModalDefaults.size.should.equal('42')
           opts.groupPlanModalDefaults.plan_code.should.equal('collaborator')
           opts.groupPlanModalDefaults.currency.should.equal('GBP')
@@ -244,9 +240,7 @@ describe('SubscriptionController', function () {
     describe('with a user without subscription', function () {
       it('should render the interstitial payment page', function (done) {
         this.res.render = (page, opts) => {
-          page.should.equal(
-            'subscriptions/plans-marketing/st-personal-off-default/interstitial-payment'
-          )
+          page.should.equal('subscriptions/interstitial-payment')
           done()
         }
         this.SubscriptionController.interstitialPaymentPage(this.req, this.res)
@@ -391,6 +385,49 @@ describe('SubscriptionController', function () {
           done()
         }
         this.SubscriptionController.paymentPage(this.req, this.res)
+      })
+    })
+
+    describe('with a user that has not confirmed their primary email address', function () {
+      beforeEach(function () {
+        this.LimitationsManager.promises.userHasV1OrV2Subscription.resolves(
+          false
+        )
+        this.PlansLocator.findLocalPlanInSettings.returns({})
+        this.UserGetter.promises.getUser.resolves({
+          email: 'test@example.com',
+          emails: [{ email: 'test@example.com' }],
+        })
+      })
+
+      it('should not render the checkout and instead show the unconfirmed primary email page', function (done) {
+        this.res.render = (page, opts) => {
+          page.should.equal('subscriptions/unconfirmed-primary-email')
+          opts.email.should.equal('test@example.com')
+          done()
+        }
+        this.SubscriptionController.paymentPage(this.req, this.res, done)
+      })
+    })
+
+    describe('with a user from a restricted country', function () {
+      beforeEach(function () {
+        this.LimitationsManager.promises.userHasV1OrV2Subscription.resolves(
+          false
+        )
+        this.PlansLocator.findLocalPlanInSettings.returns({})
+        this.GeoIpLookup.promises.getCurrencyCode.resolves({
+          currencyCode: this.stubbedCurrencyCode,
+          countryCode: 'KP',
+        })
+      })
+
+      it('should render the restricted country page', function (done) {
+        this.res.render = (page, opts) => {
+          page.should.equal('subscriptions/restricted-country')
+          done()
+        }
+        this.SubscriptionController.paymentPage(this.req, this.res, done)
       })
     })
   })
@@ -653,26 +690,76 @@ describe('SubscriptionController', function () {
   })
 
   describe('reactivateSubscription', function () {
-    beforeEach(function (done) {
-      this.res = {
-        redirect() {
+    describe('when the user has permission', function () {
+      beforeEach(function (done) {
+        this.res = {
+          redirect() {
+            done()
+          },
+        }
+        this.req.assertPermission = sinon.stub()
+        this.next = sinon.stub().callsFake(error => {
+          done(error)
+        })
+        sinon.spy(this.res, 'redirect')
+        this.SubscriptionController.reactivateSubscription(
+          this.req,
+          this.res,
+          this.next
+        )
+      })
+
+      it('should assert the user has permission to reactivate their subscription', function (done) {
+        this.req.assertPermission
+          .calledWith('reactivate-subscription')
+          .should.equal(true)
+        done()
+      })
+
+      it('should tell the handler to reactivate this user', function (done) {
+        this.SubscriptionHandler.reactivateSubscription
+          .calledWith(this.user)
+          .should.equal(true)
+        done()
+      })
+
+      it('should redurect to the subscription page', function (done) {
+        this.res.redirect.calledWith('/user/subscription').should.equal(true)
+        done()
+      })
+    })
+
+    describe('when the user does not have permission', function () {
+      beforeEach(function (done) {
+        this.res = {
+          redirect() {
+            done()
+          },
+        }
+        this.req.assertPermission = sinon.stub().throws()
+        this.next = sinon.stub().callsFake(() => {
           done()
-        },
-      }
-      sinon.spy(this.res, 'redirect')
-      this.SubscriptionController.reactivateSubscription(this.req, this.res)
-    })
+        })
+        sinon.spy(this.res, 'redirect')
+        this.SubscriptionController.reactivateSubscription(
+          this.req,
+          this.res,
+          this.next
+        )
+      })
 
-    it('should tell the handler to reactivate this user', function (done) {
-      this.SubscriptionHandler.reactivateSubscription
-        .calledWith(this.user)
-        .should.equal(true)
-      done()
-    })
+      it('should not reactivate the user', function (done) {
+        this.req.assertPermission = sinon.stub().throws()
+        this.SubscriptionHandler.reactivateSubscription.called.should.equal(
+          false
+        )
+        done()
+      })
 
-    it('should redurect to the subscription page', function (done) {
-      this.res.redirect.calledWith('/user/subscription').should.equal(true)
-      done()
+      it('should call next with an error', function (done) {
+        this.next.calledWith(sinon.match.instanceOf(Error)).should.equal(true)
+        done()
+      })
     })
   })
 

@@ -1,14 +1,12 @@
 'use strict'
 
 const assert = require('check-types').assert
-const BPromise = require('bluebird')
 
 const Blob = require('../blob')
 const FileData = require('./')
 
 class BinaryFileData extends FileData {
   /**
-   * @constructor
    * @param {string} hash
    * @param {number} byteLength
    * @see FileData
@@ -48,23 +46,23 @@ class BinaryFileData extends FileData {
   }
 
   /** @inheritdoc */
-  toEager() {
-    return BPromise.resolve(this)
+  async toEager() {
+    return this
   }
 
   /** @inheritdoc */
-  toLazy() {
-    return BPromise.resolve(this)
+  async toLazy() {
+    return this
   }
 
   /** @inheritdoc */
-  toHollow() {
-    return BPromise.try(() => FileData.createHollow(this.byteLength, null))
+  async toHollow() {
+    return FileData.createHollow(this.byteLength, null)
   }
 
   /** @inheritdoc */
-  store() {
-    return BPromise.resolve({ hash: this.hash })
+  async store() {
+    return { hash: this.hash }
   }
 }
 

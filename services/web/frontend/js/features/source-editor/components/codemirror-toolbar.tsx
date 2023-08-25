@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   useCodeMirrorStateContext,
@@ -19,8 +19,8 @@ import { DetacherSynctexControl } from '../../pdf-preview/components/detach-sync
 import DetachCompileButtonWrapper from '../../pdf-preview/components/detach-compile-button-wrapper'
 import getMeta from '../../../utils/meta'
 import { isVisual } from '../extensions/visual/visual'
-import SplitTestBadge from '../../../shared/components/split-test-badge'
 import { language } from '@codemirror/language'
+import { minimumListDepthForSelection } from '../utils/tree-operations/ancestors'
 
 export const CodeMirrorToolbar = () => {
   const view = useCodeMirrorViewContext()
@@ -42,11 +42,12 @@ const Toolbar = memo(function Toolbar() {
   const [overflowed, setOverflowed] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
-  const overflowBeforeRef = useRef<HTMLDivElement>(null)
   const overflowedItemsRef = useRef<Set<string>>(new Set())
 
   const languageName = state.facet(language)?.name
   const visual = isVisual(view)
+
+  const listDepth = minimumListDepthForSelection(state)
 
   const {
     open: overflowOpen,
@@ -59,36 +60,41 @@ const Toolbar = memo(function Toolbar() {
       setOverflowOpen(false)
       setOverflowed(true)
 
-      if (overflowBeforeRef.current) {
-        overflowedItemsRef.current = new Set()
+      overflowedItemsRef.current = new Set()
 
-        const buttonGroups = [
-          ...element.querySelectorAll<HTMLDivElement>('[data-overflow]'),
-        ].reverse()
+      const buttonGroups = [
+        ...element.querySelectorAll<HTMLDivElement>('[data-overflow]'),
+      ].reverse()
 
-        // restore all the overflowed items
-        for (const buttonGroup of buttonGroups) {
-          buttonGroup.classList.remove('overflow-hidden')
-        }
-
-        // find all the available items
-        for (const buttonGroup of buttonGroups) {
-          if (element.scrollWidth <= element.clientWidth) {
-            break
-          }
-          // add this item to the overflow
-          overflowedItemsRef.current.add(buttonGroup.dataset.overflow!)
-          buttonGroup.classList.add('overflow-hidden')
-        }
-
-        setOverflowed(overflowedItemsRef.current.size > 0)
+      // restore all the overflowed items
+      for (const buttonGroup of buttonGroups) {
+        buttonGroup.classList.remove('overflow-hidden')
       }
+
+      // find all the available items
+      for (const buttonGroup of buttonGroups) {
+        if (element.scrollWidth <= element.clientWidth) {
+          break
+        }
+        // add this item to the overflow
+        overflowedItemsRef.current.add(buttonGroup.dataset.overflow!)
+        buttonGroup.classList.add('overflow-hidden')
+      }
+
+      setOverflowed(overflowedItemsRef.current.size > 0)
     },
     [setOverflowOpen]
   )
 
-  // build when the container resizes
-  const resizeRef = useResizeObserver(buildOverflow)
+  // calculate overflow when the container resizes
+  const { elementRef, resizeRef } = useResizeObserver(buildOverflow)
+
+  // calculate overflow when `languageName` or `visual` change
+  useEffect(() => {
+    if (resizeRef.current) {
+      buildOverflow(resizeRef.current.element)
+    }
+  }, [buildOverflow, languageName, resizeRef, visual])
 
   const toggleToolbar = useCallback(() => {
     setCollapsed(value => !value)
@@ -99,16 +105,17 @@ const Toolbar = memo(function Toolbar() {
   }
 
   return (
-    <div className="ol-cm-toolbar toolbar-editor" ref={resizeRef}>
+    <div className="ol-cm-toolbar toolbar-editor" ref={elementRef}>
       {showSourceToolbar && <EditorSwitch />}
-      <ToolbarItems state={state} languageName={languageName} visual={visual} />
-      <div
-        className="ol-cm-toolbar-button-group ol-cm-toolbar-stretch"
-        ref={overflowBeforeRef}
-      >
+      <ToolbarItems
+        state={state}
+        languageName={languageName}
+        visual={visual}
+        listDepth={listDepth}
+      />
+      <div className="ol-cm-toolbar-button-group ol-cm-toolbar-stretch">
         <ToolbarOverflow
           overflowed={overflowed}
-          target={overflowBeforeRef.current ?? undefined}
           overflowOpen={overflowOpen}
           setOverflowOpen={setOverflowOpen}
           overflowRef={overflowRef}
@@ -118,6 +125,7 @@ const Toolbar = memo(function Toolbar() {
             overflowed={overflowedItemsRef.current}
             languageName={languageName}
             visual={visual}
+            listDepth={listDepth}
           />
         </ToolbarOverflow>
         <div className="formatting-buttons-wrapper" />
@@ -130,12 +138,6 @@ const Toolbar = memo(function Toolbar() {
           active={searchPanelOpen(state)}
           icon="search"
         />
-        {languageName === 'latex' && !visual && (
-          <SplitTestBadge
-            splitTestName="source-editor-toolbar"
-            displayOnVariants={['enabled']}
-          />
-        )}
         {showSourceToolbar && (
           <>
             <SwitchToPDFButton />
