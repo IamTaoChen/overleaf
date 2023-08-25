@@ -30,7 +30,7 @@ const { Issuer, generators } = require('openid-client')
 
 let client;
 
-Issuer.discover(process.env.SHARELATEX_OIDC_AUTH_URL)
+Issuer.discover(process.env.SHARELATEX_OIDC_ISSUER)
   .then(issuer => {
     client = new issuer.Client({
       client_id: process.env.SHARELATEX_OIDC_CLIENT_ID,
