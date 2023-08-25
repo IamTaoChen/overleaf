@@ -2,7 +2,7 @@
 
 const _ = require('lodash')
 const assert = require('check-types').assert
-const BPromise = require('bluebird')
+const pMap = require('p-map')
 
 const AuthorList = require('./author_list')
 const Operation = require('./operation')
@@ -17,13 +17,14 @@ const V2DocVersions = require('./v2_doc_versions')
  */
 
 /**
- * @classdesc
  * A Change is a list of {@link Operation}s applied atomically by given
  * {@link Author}(s) at a given time.
  */
 class Change {
+  static PROJECT_VERSION_RX_STRING = '^[0-9]+\\.[0-9]+$'
+  static PROJECT_VERSION_RX = new RegExp(Change.PROJECT_VERSION_RX_STRING)
+
   /**
-   * @constructor
    * @param {Array.<Operation>} operations
    * @param {Date} timestamp
    * @param {number[] | Author[]} [authors]
@@ -216,12 +217,12 @@ class Change {
    *
    * @param {string} kind see {File#load}
    * @param {BlobStore} blobStore
-   * @return {Promise}
+   * @return {Promise<void>}
    */
-  loadFiles(kind, blobStore) {
-    return BPromise.each(this.operations, operation =>
-      operation.loadFiles(kind, blobStore)
-    )
+  async loadFiles(kind, blobStore) {
+    for (const operation of this.operations) {
+      await operation.loadFiles(kind, blobStore)
+    }
   }
 
   /**
@@ -300,20 +301,19 @@ class Change {
     return Change.fromRaw(this.toRaw())
   }
 
-  store(blobStore, concurrency) {
+  async store(blobStore, concurrency) {
     assert.maybe.number(concurrency, 'bad concurrency')
 
     const raw = this.toRaw()
     raw.authors = _.uniq(raw.authors)
 
-    return BPromise.map(
+    const rawOperations = await pMap(
       this.operations,
       operation => operation.store(blobStore),
       { concurrency: concurrency || 1 }
-    ).then(rawOperations => {
-      raw.operations = rawOperations
-      return raw
-    })
+    )
+    raw.operations = rawOperations
+    return raw
   }
 
   canBeComposedWith(other) {
@@ -326,8 +326,5 @@ class Change {
     return operations[0].canBeComposedWith(otherOperations[0])
   }
 }
-
-Change.PROJECT_VERSION_RX_STRING = '^[0-9]+\\.[0-9]+$'
-Change.PROJECT_VERSION_RX = new RegExp(Change.PROJECT_VERSION_RX_STRING)
 
 module.exports = Change

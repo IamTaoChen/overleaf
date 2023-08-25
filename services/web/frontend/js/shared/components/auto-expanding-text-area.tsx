@@ -36,21 +36,26 @@ function AutoExpandingTextArea({
   ...rest
 }: AutoExpandingTextAreaProps) {
   const ref = useRef<HTMLTextAreaElement>(null)
+  const isFirstResizeRef = useRef(true)
 
   useEffect(() => {
     if (!ref.current || !onResize || !('ResizeObserver' in window)) {
       return
     }
 
-    let isFirstResize = true
-
     const resizeObserver = new ResizeObserver(() => {
       // Ignore the resize that is triggered when the element is first
       // inserted into the DOM
-      if (isFirstResize) {
-        isFirstResize = false
+      if (isFirstResizeRef.current) {
+        isFirstResizeRef.current = false
       } else {
-        onResize()
+        // Prevent errors like "ResizeObserver loop completed with undelivered
+        // notifications" that occur if onResize does something complicated.
+        // The cost of this is that onResize lags one frame behind, but it's
+        // unlikely to matter.
+
+        // Wrap onResize to prevent extra parameters being passed
+        window.requestAnimationFrame(() => onResize())
       }
     })
 

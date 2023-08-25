@@ -437,7 +437,7 @@ const ProjectController = {
             )
             User.findById(
               userId,
-              'email first_name last_name referal_id signUpDate featureSwitches features featuresEpoch refProviders alphaProgram betaProgram isAdmin ace labsProgram labsProgramGalileo',
+              'email first_name last_name referal_id signUpDate featureSwitches features featuresEpoch refProviders alphaProgram betaProgram isAdmin ace labsProgram',
               (err, user) => {
                 // Handle case of deleted user
                 if (user == null) {
@@ -662,6 +662,7 @@ const ProjectController = {
             }
           )
         },
+        // this is only needed until the survey link is removed from the toolbar
         richTextAssignment(cb) {
           SplitTestHandler.getAssignment(
             req,
@@ -679,6 +680,18 @@ const ProjectController = {
         },
         figureModalAssignment(cb) {
           SplitTestHandler.getAssignment(req, res, 'figure-modal', () => {
+            // We'll pick up the assignment from the res.locals assignment.
+            cb()
+          })
+        },
+        tableGeneratorAssignment(cb) {
+          SplitTestHandler.getAssignment(req, res, 'table-generator', () => {
+            // We'll pick up the assignment from the res.locals assignment.
+            cb()
+          })
+        },
+        pasteHtmlAssignment(cb) {
+          SplitTestHandler.getAssignment(req, res, 'paste-html', () => {
             // We'll pick up the assignment from the res.locals assignment.
             cb()
           })
@@ -743,7 +756,6 @@ const ProjectController = {
           brandVariation,
           pdfjsAssignment,
           editorLeftMenuAssignment,
-          richTextAssignment,
           sourceEditorToolbarAssigment,
           historyViewAssignment,
           reviewPanelAssignment,
@@ -841,15 +853,6 @@ const ProjectController = {
               !Features.hasFeature('saas') ||
               (user.features && user.features.symbolPalette)
 
-            // It would be nice if this could go in the Galileo module but
-            // nothing else does that
-            const galileoEnabled = req.query?.galileo || ''
-            const galileoFeatures =
-              req.query && 'galileoFeatures' in req.query
-                ? req.query.galileoFeatures.split(',').map(f => f.trim())
-                : ['all']
-            const galileoPromptWords = req.query?.galileoPromptWords || ''
-
             // Persistent upgrade prompts
             // in header & in share project modal
             const showUpgradePrompt =
@@ -867,13 +870,6 @@ const ProjectController = {
               detachRole === 'detached'
                 ? 'project/editor_detached'
                 : 'project/editor'
-
-            let richTextVariant
-            if (!Features.hasFeature('saas')) {
-              richTextVariant = 'cm6'
-            } else {
-              richTextVariant = richTextAssignment.variant
-            }
 
             res.render(template, {
               title: project.name,
@@ -896,7 +892,6 @@ const ProjectController = {
                 alphaProgram: user.alphaProgram,
                 betaProgram: user.betaProgram,
                 labsProgram: user.labsProgram,
-                labsProgramGalileo: user.labsProgramGalileo,
                 isAdmin: hasAdminAccess(user),
               },
               userSettings: {
@@ -940,16 +935,12 @@ const ProjectController = {
                 sourceEditorToolbarAssigment.variant === 'enabled',
               showSymbolPalette,
               symbolPaletteAvailable: Features.hasFeature('symbol-palette'),
-              galileoEnabled,
-              galileoFeatures,
-              galileoPromptWords,
               detachRole,
               metadata: { viewport: false },
               showUpgradePrompt,
               fixedSizeDocument: true,
               useOpenTelemetry: Settings.useOpenTelemetryClient,
               showCM6SwitchAwaySurvey: Settings.showCM6SwitchAwaySurvey,
-              richTextVariant,
               historyViewReact: historyViewAssignment.variant === 'react',
               isReviewPanelReact: reviewPanelAssignment.variant === 'react',
               showPersonalAccessToken,

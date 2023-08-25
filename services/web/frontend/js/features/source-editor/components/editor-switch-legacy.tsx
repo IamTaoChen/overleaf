@@ -10,8 +10,9 @@ import SplitTestBadge from '../../../shared/components/split-test-badge'
 function Badge() {
   const content = (
     <>
-      Overleaf has upgraded the source editor. You can still use the old editor
-      by selecting "Source (legacy)".
+      Overleaf has upgraded the source editor.
+      <br />
+      You can still use the old editor by selecting "Source (legacy)".
       <br />
       <br />
       Click to learn more and give feedback
@@ -47,12 +48,12 @@ function EditorSwitch() {
   const [newSourceEditor, setNewSourceEditor] = useScopeValue(
     'editor.newSourceEditor'
   )
-  const [richText, setRichText] = useScopeValue('editor.showRichText')
   const [visual, setVisual] = useScopeValue('editor.showVisual')
 
   const [docName] = useScopeValue('editor.open_doc_name')
   const richTextAvailable = isValidTeXFile(docName)
-  const richTextOrVisual = richText || (richTextAvailable && visual)
+  // TODO: rename this after legacy & toolbar split tests are complete
+  const richTextOrVisual = richTextAvailable && visual
 
   const handleChange = useCallback(
     event => {
@@ -60,33 +61,25 @@ function EditorSwitch() {
 
       switch (editorType) {
         case 'ace':
-          setRichText(false)
           setVisual(false)
           setNewSourceEditor(false)
           break
 
         case 'cm6':
-          setRichText(false)
           setVisual(false)
           setNewSourceEditor(true)
           break
 
         case 'rich-text':
-          if (getMeta('ol-richTextVariant') === 'cm6') {
-            setRichText(false)
-            setVisual(true)
-            setNewSourceEditor(true)
-          } else {
-            setRichText(true)
-            setVisual(false)
-          }
+          setVisual(true)
+          setNewSourceEditor(true)
 
           break
       }
 
       sendMB('editor-switch-change', { editorType })
     },
-    [setRichText, setVisual, setNewSourceEditor]
+    [setVisual, setNewSourceEditor]
   )
 
   return (
@@ -168,7 +161,7 @@ const RichTextToggle: FC<{
   if (disabled) {
     return (
       <Tooltip
-        description={t('rich_text_is_only_available_for_tex_files')}
+        description={t('visual_editor_is_only_available_for_tex_files')}
         id="rich-text-toggle-tooltip"
         overlayProps={{ placement: 'bottom' }}
         tooltipProps={{ className: 'tooltip-wide' }}

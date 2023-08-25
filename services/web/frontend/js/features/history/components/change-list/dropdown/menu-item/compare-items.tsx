@@ -2,44 +2,32 @@ import { useTranslation } from 'react-i18next'
 import { useHistoryContext } from '../../../../context/history-context'
 import { UpdateRange } from '../../../../services/types/update'
 import Compare from './compare'
-import { updateRangeUnion } from '../../../../utils/range'
 import MaterialIcon from '../../../../../../shared/components/material-icon'
+import { ItemSelectionState } from '../../../../utils/history-details'
 
 type CompareItemsProps = {
   updateRange: UpdateRange
-  selected: boolean
+  selected: ItemSelectionState
+  text?: string
   closeDropdown: () => void
 }
 
 function CompareItems({
   updateRange,
   selected,
+  text,
   closeDropdown,
 }: CompareItemsProps) {
   const { t } = useTranslation()
   const { selection } = useHistoryContext()
-  const { updateRange: selRange, comparing } = selection
-  const notASelectionBoundary =
-    !!selRange &&
-    comparing &&
-    updateRange.toV !== selRange.toV &&
-    updateRange.fromV !== selRange.fromV
-  const showCompareWithSelected = !comparing && !!selRange && !selected
-  const showCompareToThis =
-    notASelectionBoundary && updateRange.toV > selRange.fromV
-  const showCompareFromThis =
-    notASelectionBoundary && updateRange.fromV < selRange.toV
+  const { updateRange: selRange } = selection
+  if (selRange === null) {
+    return null
+  }
 
   return (
     <>
-      {showCompareWithSelected ? (
-        <Compare
-          comparisonRange={updateRangeUnion(updateRange, selRange)}
-          closeDropdown={closeDropdown}
-          text={t('history_compare_to_selected_version')}
-        />
-      ) : null}
-      {showCompareFromThis ? (
+      {selected === 'belowSelected' ? (
         <Compare
           comparisonRange={{
             fromV: updateRange.fromV,
@@ -48,11 +36,17 @@ function CompareItems({
             toVTimestamp: selRange.toVTimestamp,
           }}
           closeDropdown={closeDropdown}
-          text={t('history_compare_from_this_version')}
-          icon={<MaterialIcon type="line_start_circle" className="fa-fw" />}
+          toolTipDescription={t('history_compare_from_this_version')}
+          text={text}
+          icon={
+            <MaterialIcon
+              type="align_end"
+              className="material-symbols-rounded history-dropdown-icon p-1"
+            />
+          }
         />
       ) : null}
-      {showCompareToThis ? (
+      {selected === 'aboveSelected' ? (
         <Compare
           comparisonRange={{
             fromV: selRange.fromV,
@@ -61,8 +55,14 @@ function CompareItems({
             toVTimestamp: updateRange.toVTimestamp,
           }}
           closeDropdown={closeDropdown}
-          text={t('history_compare_up_to_this_version')}
-          icon={<MaterialIcon type="line_end_circle" className="fa-fw" />}
+          toolTipDescription={t('history_compare_up_to_this_version')}
+          text={text}
+          icon={
+            <MaterialIcon
+              type="align_start"
+              className="material-symbols-rounded history-dropdown-icon p-1"
+            />
+          }
         />
       ) : null}
     </>

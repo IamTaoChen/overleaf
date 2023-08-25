@@ -147,13 +147,48 @@ async function _createInvite(subscription, email, inviter) {
 
   await subscription.save()
 
-  const opts = {
-    to: email,
-    inviter,
-    acceptInviteUrl: `${settings.siteUrl}/subscription/invites/${invite.token}/`,
-    appName: settings.appName,
+  if (subscription.groupPolicy) {
+    let admin = {}
+    try {
+      admin = await SubscriptionLocator.promises.getAdminEmailAndName(
+        subscription._id
+      )
+    } catch (err) {
+      logger.error({ err }, 'error getting subscription admin email and name')
+    }
+
+    const user = await UserGetter.promises.getUserByAnyEmail(email)
+
+    const opts = {
+      to: email,
+      admin,
+      inviter,
+      acceptInviteUrl: `${settings.siteUrl}/subscription/invites/${invite.token}/`,
+      appName: settings.appName,
+    }
+
+    if (user) {
+      await EmailHandler.promises.sendEmail(
+        'verifyEmailToJoinManagedUsers',
+        opts
+      )
+    } else {
+      await EmailHandler.promises.sendEmail(
+        'inviteNewUserToJoinManagedUsers',
+        opts
+      )
+    }
+  } else {
+    const opts = {
+      to: email,
+      inviter,
+      acceptInviteUrl: `${settings.siteUrl}/subscription/invites/${invite.token}/`,
+      appName: settings.appName,
+    }
+
+    await EmailHandler.promises.sendEmail('verifyEmailToJoinTeam', opts)
   }
-  await EmailHandler.promises.sendEmail('verifyEmailToJoinTeam', opts)
+
   Object.assign(invite, { invite: true })
   return invite
 }

@@ -131,7 +131,7 @@ export function FileTreeActionableProvider({ children }) {
   )
 
   const { fileTreeData, dispatchRename, dispatchMove } = useFileTreeData()
-  const { selectedEntityIds } = useFileTreeSelectable()
+  const { selectedEntityIds, isRootFolderSelected } = useFileTreeSelectable()
 
   const [droppedFiles, setDroppedFiles] = useState(null)
 
@@ -231,19 +231,30 @@ export function FileTreeActionableProvider({ children }) {
         return dispatch({ type: ACTION_TYPES.ERROR, error: validationError })
       }
 
+      // keep track of old parent folder ids so we can revert entities if sync fails
+      const oldParentFolderIds = {}
+      let isMoveFailed = false
+
       // dispatch moves immediately
-      founds.forEach(found => dispatchMove(found.entity._id, toFolderId))
+      founds.forEach(found => {
+        oldParentFolderIds[found.entity._id] = found.parentFolderId
+        dispatchMove(found.entity._id, toFolderId)
+      })
 
       // sync dispatched moves after
-      return mapSeries(founds, found =>
-        syncMove(projectId, found.type, found.entity._id, toFolderId)
-      )
-        .then(() => {
-          dispatch({ type: ACTION_TYPES.CLEAR })
-        })
-        .catch(error => {
+      return mapSeries(founds, async found => {
+        try {
+          await syncMove(projectId, found.type, found.entity._id, toFolderId)
+        } catch (error) {
+          isMoveFailed = true
+          dispatchMove(found.entity._id, oldParentFolderIds[found.entity._id])
           dispatch({ type: ACTION_TYPES.ERROR, error })
-        })
+        }
+      }).then(() => {
+        if (!isMoveFailed) {
+          dispatch({ type: ACTION_TYPES.CLEAR })
+        }
+      })
     },
     [dispatchMove, fileTreeData, projectId]
   )
@@ -252,10 +263,13 @@ export function FileTreeActionableProvider({ children }) {
     dispatch({ type: ACTION_TYPES.START_CREATE_FOLDER })
   }, [])
 
-  const parentFolderId = useMemo(
-    () => getSelectedParentFolderId(fileTreeData, selectedEntityIds),
-    [fileTreeData, selectedEntityIds]
-  )
+  const parentFolderId = useMemo(() => {
+    return getSelectedParentFolderId(
+      fileTreeData,
+      selectedEntityIds,
+      isRootFolderSelected
+    )
+  }, [fileTreeData, selectedEntityIds, isRootFolderSelected])
 
   const finishCreatingEntity = useCallback(
     entity => {
@@ -358,8 +372,8 @@ export function FileTreeActionableProvider({ children }) {
   }, [fileTreeData, projectId, selectedEntityIds])
 
   const value = {
-    canDelete: selectedEntityIds.size > 0,
-    canRename: selectedEntityIds.size === 1,
+    canDelete: selectedEntityIds.size > 0 && !isRootFolderSelected,
+    canRename: selectedEntityIds.size === 1 && !isRootFolderSelected,
     canCreate: selectedEntityIds.size < 2,
     ...state,
     parentFolderId,
@@ -416,7 +430,15 @@ export function useFileTreeActionable() {
   return context
 }
 
-function getSelectedParentFolderId(fileTreeData, selectedEntityIds) {
+function getSelectedParentFolderId(
+  fileTreeData,
+  selectedEntityIds,
+  isRootFolderSelected
+) {
+  if (isRootFolderSelected) {
+    return fileTreeData._id
+  }
+
   // we expect only one entity to be selected in that case, so we pick the first
   const selectedEntityId = Array.from(selectedEntityIds)[0]
   if (!selectedEntityId) {

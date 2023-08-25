@@ -154,6 +154,8 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     'texttt',
     'textmd',
     'textsf',
+    'textsubscript',
+    'textsuperscript',
     'sout',
     'emph',
     'url',
@@ -179,7 +181,6 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
   })
 
   forEach([
-    ['ref', '🏷'],
     ['label', '🏷'],
     ['cite', '📚'],
     ['include', '🔗'],
@@ -190,6 +191,17 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     cy.get('@first-line').should('have.text', `\\${command}{key}`)
     cy.get('@first-line').type('{rightArrow}')
     cy.get('@first-line').should('have.text', `\\${command}{key}`)
+    cy.get('@first-line').type(' ')
+    cy.get('@first-line').should('have.text', `${icon}key `)
+  })
+
+  forEach([['ref', '🏷']]).it('handles \\%s commands', function (command, icon) {
+    cy.get('@first-line').type(`\\${command}{} `)
+    cy.get('@first-line').should('have.text', `${icon} `)
+    cy.get('@first-line').type('{Backspace}{leftArrow}key')
+    cy.get('@first-line').should('have.text', `${icon}{key}`)
+    cy.get('@first-line').type('{rightArrow}')
+    cy.get('@first-line').should('have.text', `${icon}{key}`)
     cy.get('@first-line').type(' ')
     cy.get('@first-line').should('have.text', `${icon}key `)
   })
@@ -419,6 +431,7 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     const deleteLine =
       '{command}{leftArrow}{shift}{command}{rightArrow}{backspace}'
 
+    // italic, bold and emph
     cy.get('@second-line').type(deleteLine)
     cy.get('@second-line').type(
       '\\title{{}formatted with \\textit{{}italic} \\textbf{{}bold} \\emph{{}emph}}'
@@ -437,6 +450,24 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
       'title<br> <b><i><em>formated</em></i></b> <i>only italic</i>'
     )
 
+    // texttt command
+    cy.get('@second-line').type(deleteLine)
+    cy.get('@second-line').type('\\title{{}title with \\texttt{{}command}}')
+    cy.get('.ol-cm-title').should(
+      'contain.html',
+      'title with <span class="ol-cm-command-texttt">command</span>'
+    )
+
+    cy.get('@second-line').type(deleteLine)
+    cy.get('@second-line').type(
+      '\\title{{}title with \\texttt{{}\\textbf{{}command}}}'
+    )
+    cy.get('.ol-cm-title').should(
+      'contain.html',
+      'title with <span class="ol-cm-command-texttt"><b>command</b></span>'
+    )
+
+    // unsupported commands
     cy.get('@second-line').type(deleteLine)
     cy.get('@second-line').type('\\title{{}Title with \\& ampersands}')
     cy.get('.ol-cm-title').should(
@@ -528,6 +559,43 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     cy.get('.ol-cm-author').eq(1).should('contain', 'AuthorNeX')
   })
 
+  it('should ignore some commands in author', function () {
+    cy.get('@first-line').type(
+      [
+        '\\author{{}Author with \\corref{{}cor1} and \\fnref{{}label2} in the name}',
+        '\\title{{}Document title}',
+        '\\begin{{}document}',
+        '\\maketitle',
+        '\\end{{}document}',
+        '',
+      ].join('{Enter}')
+    )
+
+    cy.get('.ol-cm-authors').should('have.length', 1)
+    cy.get('.ol-cm-author').should(
+      'contain.html',
+      'Author with  and  in the name'
+    )
+  })
+
+  describe('decorates color commands', function () {
+    it('decorates textcolor', function () {
+      cy.get('@first-line').type('\\textcolor{{}red}{{}foo}')
+      cy.get('.ol-cm-textcolor')
+        .should('have.length', 1)
+        .should('have.text', 'foo')
+        .should('have.attr', 'style', 'color: rgb(255,0,0)')
+    })
+
+    it('decorates colorbox', function () {
+      cy.get('@first-line').type('\\colorbox{{}yellow}{{}foo}')
+      cy.get('.ol-cm-colorbox')
+        .should('have.length', 1)
+        .should('have.text', 'foo')
+        .should('have.attr', 'style', 'background-color: rgb(255,255,0)')
+    })
+  })
+
   describe('handling of special characters', function () {
     it('decorates a tilde with a non-breaking space', function () {
       cy.get('@first-line').type('Test~test')
@@ -538,7 +606,77 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
       cy.get('@first-line').type('Test\\~test')
       cy.get('@first-line').should('have.text', 'Test~test')
     })
+
+    it('decorates line breaks', function () {
+      cy.get('@first-line').type('Test \\\\ test')
+      cy.get('@second-line').click()
+      cy.get('@first-line').should('have.text', 'Test ↩ test')
+    })
   })
+
+  describe('decorates theorems', function () {
+    it('decorates a proof environment', function () {
+      cy.get('@first-line').type(
+        ['\\begin{{}proof}{Enter}', 'foo{Enter}', '\\end{{}proof}{Enter}'].join(
+          ''
+        )
+      )
+      cy.get('.cm-content').should('have.text', 'Prooffoo')
+    })
+
+    it('decorates a theorem environment', function () {
+      cy.get('@first-line').type(
+        [
+          '\\begin{{}theorem}{Enter}',
+          'foo{Enter}',
+          '\\end{{}theorem}{Enter}',
+        ].join('')
+      )
+      cy.get('.cm-content').should('have.text', 'Theoremfoo')
+    })
+
+    it('decorates a theorem environment with a label', function () {
+      cy.get('@first-line').type(
+        [
+          '\\begin{{}theorem}[Bar]{Enter}',
+          'foo{Enter}',
+          '\\end{{}theorem}{Enter}',
+        ].join('')
+      )
+      cy.get('.cm-content').should('have.text', 'Theorem (Bar)foo')
+    })
+
+    it('decorates a custom theorem environment with a label', function () {
+      cy.get('@first-line').type(
+        [
+          '\\newtheorem{{}thm}{{}Foo}{Enter}',
+          '\\begin{{}thm}[Bar]{Enter}',
+          'foo{Enter}',
+          '\\end{{}thm}{Enter}',
+        ].join('')
+      )
+      cy.get('.cm-content').should(
+        'have.text',
+        ['\\newtheorem{thm}{Foo}', 'Foo (Bar)foo'].join('')
+      )
+    })
+  })
+
+  forEach(['quote', 'quotation', 'quoting', 'displayquote']).it(
+    'renders a %s environment',
+    function (environment) {
+      cy.get('@first-line').type(`\\begin{{}${environment}`)
+      cy.findAllByRole('listbox').should('have.length', 1)
+      cy.findByRole('listbox').contains(`\\begin{${environment}}`).click()
+      cy.get('@second-line').type('foo')
+      cy.get('.cm-content').should(
+        'have.text',
+        [`\\begin{${environment}}`, '    foo', `\\end{${environment}}`].join('')
+      )
+      cy.get('.cm-line').eq(4).click()
+      cy.get('.cm-content').should('have.text', '    foo')
+    }
+  )
 
   // TODO: \input
   // TODO: Math

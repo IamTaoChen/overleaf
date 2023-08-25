@@ -8,6 +8,10 @@ const {
   UserNotFoundError,
   SubscriptionNotFoundError,
 } = require('../Errors/Errors')
+const UserGetter = require('../User/UserGetter')
+const UserUpdater = require('../User/UserUpdater')
+const EmailHandler = require('../Email/EmailHandler')
+const logger = require('@overleaf/logger')
 
 /**
  * This module contains functions for handling managed users in a
@@ -34,17 +38,47 @@ async function enableManagedUsers(subscriptionId) {
   // update the subscription to use the new policy
   subscription.groupPolicy = groupPolicy._id
   await subscription.save()
+
+  await _sendEmailToGroupMembers(subscriptionId)
+}
+
+/**
+ * Disables managed users for a given subscription by removing the
+ * group policy and deleting enrolment information for all managed users.
+ * @async
+ * @function
+ * @param {string} subscriptionId - The ID of the subscription to disable
+ *   managed users for.
+ * @returns {Promise<void>} - A Promise that resolves when the subscription and
+ *   users have been updated.
+ */
+async function disableManagedUsers(subscriptionId) {
+  const subscription = await Subscription.findById(subscriptionId).exec()
+
+  for (const userId of subscription.member_ids || []) {
+    const user = await UserGetter.promises.getUser(userId, { enrollment: 1 })
+    if (
+      user.enrollment?.managedBy?.toString() === subscription._id.toString()
+    ) {
+      await UserUpdater.promises.updateUser(userId, {
+        $unset: { enrollment: 1 },
+      })
+    }
+  }
+
+  subscription.groupPolicy = undefined
+  await subscription.save()
 }
 
 /**
  * Retrieves the group policy for a user enrolled in a managed group.
  * @async
  * @function
- * @param {Object} user - The user object to retrieve the group policy for.
+ * @param {Object} requestedUser - The user object to retrieve the group policy for.
  * @returns {Promise<Object>} - A Promise that resolves with the group policy
- *   object for the user's enrollment, or undefined if it does not exist.
+ *   and subscription objects for the user's enrollment, or null if it does not exist.
  */
-async function getGroupPolicyForUser(requestedUser) {
+async function getEnrollmentForUser(requestedUser) {
   // Don't rely on the user being populated, it may be a session user without
   // the enrollment property. Force the user to be loaded from mongo.
   const user = await User.findById(requestedUser._id, 'enrollment')
@@ -53,7 +87,7 @@ async function getGroupPolicyForUser(requestedUser) {
   }
   // Now we are sure the user exists and we have the full contents
   if (user.enrollment?.managedBy == null) {
-    return
+    return {}
   }
   // retrieve the subscription and the group policy (without the _id field)
   const subscription = await Subscription.findById(user.enrollment.managedBy)
@@ -64,11 +98,20 @@ async function getGroupPolicyForUser(requestedUser) {
       info: { subscriptionId: user.enrollment.managedBy, userId: user._id },
     })
   }
+
+  // check whether the user is an admin of the subscription
+  const isManagedGroupAdmin = user._id.equals(subscription.admin_id)
+
   // return the group policy as a plain object (without the __v field)
   const groupPolicy = subscription.groupPolicy.toObject({
     versionKey: false,
   })
-  return groupPolicy
+
+  return {
+    groupPolicy,
+    managedBy: user.enrollment.managedBy,
+    isManagedGroupAdmin,
+  }
 }
 
 async function enrollInSubscription(userId, subscription) {
@@ -106,13 +149,54 @@ async function enrollInSubscription(userId, subscription) {
   }
 }
 
+/**
+ * Send email to all group members, irregardless of the member status.
+ * @async
+ * @function
+ * @param {string} subscriptionId - The ID of the subscription to enable
+ *   managed users for.
+ * @returns {Promise<void>} - A Promise that resolves when all the `sendEmail` function has been sent,
+ * irregardless of whether they're successful or failed.
+ */
+async function _sendEmailToGroupMembers(subscriptionId) {
+  const EMAIL_DELAY_IN_MS = 0
+
+  const subscription = await Subscription.findById(subscriptionId)
+    .populate('member_ids', 'email')
+    .populate('admin_id', ['first_name', 'last_name', 'email'])
+    .exec()
+
+  // On failure, log the error and carry on so that one email failing does not prevent other emails sending
+  for (const recipient of subscription.member_ids) {
+    try {
+      const opts = {
+        to: recipient.email,
+        admin: subscription.admin_id,
+        groupName: subscription.teamName,
+      }
+      EmailHandler.sendDeferredEmail(
+        'surrenderAccountForManagedUsers',
+        opts,
+        EMAIL_DELAY_IN_MS
+      )
+    } catch (err) {
+      logger.error(
+        { err, userId: recipient._id },
+        'could not send notification email to surrender account'
+      )
+    }
+  }
+}
+
 module.exports = {
   promises: {
     enableManagedUsers,
-    getGroupPolicyForUser,
+    disableManagedUsers,
+    getEnrollmentForUser,
     enrollInSubscription,
   },
   enableManagedUsers: callbackify(enableManagedUsers),
-  getGroupPolicyForUser: callbackify(getGroupPolicyForUser),
+  getEnrollmentForUser: callbackify(getEnrollmentForUser),
   enrollInSubscription: callbackify(enrollInSubscription),
+  disableManagedUsers: callbackify(disableManagedUsers),
 }

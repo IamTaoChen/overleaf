@@ -24,6 +24,9 @@ import { figureModalPasteHandler } from '../figure-modal'
 import { isSplitTestEnabled } from '../../../../utils/splitTestUtils'
 import { toolbarPanel } from '../toolbar/toolbar-panel'
 import { selectDecoratedArgument } from './select-decorated-argument'
+import { pasteHtml } from './paste-html'
+import { commandTooltip } from '../command-tooltip'
+import { tableGeneratorTheme } from './table-generator'
 
 type Options = {
   visual: boolean
@@ -195,13 +198,16 @@ const extension = (options: Options) => [
   visualHighlightStyle,
   mousedown,
   listItemMarker,
-  markDecorations,
   atomicDecorations(options),
+  markDecorations, // NOTE: must be after atomicDecorations, so that mark decorations wrap inline widgets
   skipPreambleWithCursor,
   visualKeymap,
+  commandTooltip,
   scrollJumpAdjuster,
   isSplitTestEnabled('source-editor-toolbar') ? [] : toolbarPanel(),
   selectDecoratedArgument,
   showContentWhenParsed,
   figureModalPasteHandler(),
+  isSplitTestEnabled('paste-html') ? pasteHtml : [],
+  isSplitTestEnabled('table-generator') ? tableGeneratorTheme : [],
 ]

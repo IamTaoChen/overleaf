@@ -40,6 +40,28 @@ const SubscriptionLocator = {
       .exec(callback)
   },
 
+  getAdminEmail(subscriptionId, callback) {
+    Subscription.findById(subscriptionId)
+      .populate('admin_id', 'email')
+      .exec((err, subscription) => {
+        if (err) {
+          return callback(err)
+        }
+        callback(err, subscription?.admin_id?.email)
+      })
+  },
+
+  getAdminEmailAndName(subscriptionId, callback) {
+    Subscription.findById(subscriptionId)
+      .populate('admin_id', ['email', 'first_name', 'last_name'])
+      .exec((err, subscription) => {
+        if (err) {
+          return callback(err)
+        }
+        callback(err, subscription?.admin_id)
+      })
+  },
+
   hasRecurlyGroupSubscription(userOrId, callback) {
     const userId = SubscriptionLocator._getUserId(userOrId)
     Subscription.exists(
@@ -111,6 +133,8 @@ SubscriptionLocator.promises = {
     SubscriptionLocator.getManagedGroupSubscriptions
   ),
   getMemberSubscriptions: promisify(SubscriptionLocator.getMemberSubscriptions),
+  getAdminEmail: promisify(SubscriptionLocator.getAdminEmail),
+  getAdminEmailAndName: promisify(SubscriptionLocator.getAdminEmailAndName),
   getSubscription: promisify(SubscriptionLocator.getSubscription),
   getSubscriptionByMemberIdAndId: promisify(
     SubscriptionLocator.getSubscriptionByMemberIdAndId

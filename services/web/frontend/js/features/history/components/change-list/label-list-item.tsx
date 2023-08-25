@@ -11,17 +11,23 @@ import { useTranslation } from 'react-i18next'
 import { ActiveDropdown } from '../../hooks/use-dropdown-active-item'
 import { HistoryContextValue } from '../../context/types/history-context-value'
 import LabelDropdownContent from './dropdown/label-dropdown-content'
+import CompareItems from './dropdown/menu-item/compare-items'
+import { ItemSelectionState } from '../../utils/history-details'
+import CompareVersionDropdown from './dropdown/compare-version-dropdown'
+import { CompareVersionDropdownContentLabelsList } from './dropdown/compare-version-dropdown-content'
 
 type LabelListItemProps = {
   version: Version
   labels: LoadedLabel[]
   currentUserId: string
   projectId: string
-  selected: boolean
+  selected: ItemSelectionState
   selectable: boolean
   setSelection: HistoryContextValue['setSelection']
   dropdownOpen: boolean
   dropdownActive: boolean
+  compareDropdownOpen: boolean
+  compareDropdownActive: boolean
   setActiveDropdownItem: ActiveDropdown['setActiveDropdownItem']
   closeDropdownForItem: ActiveDropdown['closeDropdownForItem']
 }
@@ -36,6 +42,8 @@ function LabelListItem({
   setSelection,
   dropdownOpen,
   dropdownActive,
+  compareDropdownOpen,
+  compareDropdownActive,
   setActiveDropdownItem,
   closeDropdownForItem,
 }: LabelListItemProps) {
@@ -55,10 +63,17 @@ function LabelListItem({
 
   const setIsOpened = useCallback(
     (isOpened: boolean) => {
-      setActiveDropdownItem({ item: version, isOpened })
+      setActiveDropdownItem({
+        item: version,
+        isOpened,
+        whichDropDown: 'moreOptions',
+      })
     },
     [setActiveDropdownItem, version]
   )
+  const closeDropdown = useCallback(() => {
+    closeDropdownForItem(version, 'moreOptions')
+  }, [closeDropdownForItem, version])
 
   return (
     <HistoryVersionDetails
@@ -75,14 +90,44 @@ function LabelListItem({
       >
         {dropdownActive ? (
           <LabelDropdownContent
-            selected={selected}
             version={version}
-            versionTimestamp={toVTimestamp}
             projectId={projectId}
             closeDropdownForItem={closeDropdownForItem}
           />
         ) : null}
       </HistoryDropdown>
+      {selected !== 'selected' ? (
+        <div data-testid="compare-icon-version" className="pull-right">
+          {selected !== 'withinSelected' ? (
+            <CompareItems
+              updateRange={updateRange}
+              selected={selected}
+              closeDropdown={closeDropdown}
+            />
+          ) : (
+            <CompareVersionDropdown
+              id={version.toString()}
+              isOpened={compareDropdownOpen}
+              setIsOpened={(isOpened: boolean) =>
+                setActiveDropdownItem({
+                  item: version,
+                  isOpened,
+                  whichDropDown: 'compare',
+                })
+              }
+            >
+              {compareDropdownActive ? (
+                <CompareVersionDropdownContentLabelsList
+                  version={version}
+                  closeDropdownForItem={closeDropdownForItem}
+                  versionTimestamp={toVTimestamp}
+                />
+              ) : null}
+            </CompareVersionDropdown>
+          )}
+        </div>
+      ) : null}
+
       <div className="history-version-main-details">
         {labels.map(label => (
           <div key={label.id} className="history-version-label">

@@ -88,6 +88,8 @@ export function FileTreeSelectableProvider({ onSelect, children }) {
 
   const { fileTreeData, setSelectedEntities } = useFileTreeData()
 
+  const [isRootFolderSelected, setIsRootFolderSelected] = useState(false)
+
   const [selectedEntityIds, dispatch] = useReducer(
     permissionsLevel === 'readOnly'
       ? fileTreeSelectableReadOnlyReducer
@@ -150,6 +152,7 @@ export function FileTreeSelectableProvider({ onSelect, children }) {
 
       dispatch({ type: ACTION_TYPES.SELECT, id: found.entity._id })
     }
+
     window.addEventListener('editor.openDoc', handleOpenDoc)
     return () => window.removeEventListener('editor.openDoc', handleOpenDoc)
   }, [fileTreeData])
@@ -176,6 +179,8 @@ export function FileTreeSelectableProvider({ onSelect, children }) {
     select,
     unselect,
     selectOrMultiSelectEntity,
+    isRootFolderSelected,
+    setIsRootFolderSelected,
   }
 
   return (
@@ -204,18 +209,23 @@ const editorContextPropTypes = {
 
 export function useSelectableEntity(id, isFile) {
   const { view, setView } = useLayoutContext(layoutContextPropTypes)
-  const { selectedEntityIds, selectOrMultiSelectEntity } = useContext(
-    FileTreeSelectableContext
-  )
+  const {
+    selectedEntityIds,
+    selectOrMultiSelectEntity,
+    isRootFolderSelected,
+    setIsRootFolderSelected,
+  } = useContext(FileTreeSelectableContext)
 
   const isSelected = selectedEntityIds.has(id)
 
   const handleEvent = useCallback(
     ev => {
+      ev.stopPropagation()
+      setIsRootFolderSelected(false)
       selectOrMultiSelectEntity(id, ev.ctrlKey || ev.metaKey)
       setView(isFile ? 'file' : 'editor')
     },
-    [id, selectOrMultiSelectEntity, setView, isFile]
+    [id, setIsRootFolderSelected, selectOrMultiSelectEntity, setView, isFile]
   )
 
   const handleClick = useCallback(
@@ -244,7 +254,8 @@ export function useSelectableEntity(id, isFile) {
     [id, handleEvent, selectedEntityIds]
   )
 
-  const isVisuallySelected = isSelected && view !== 'pdf'
+  const isVisuallySelected =
+    !isRootFolderSelected && isSelected && view !== 'pdf'
   const props = useMemo(
     () => ({
       className: classNames({ selected: isVisuallySelected }),

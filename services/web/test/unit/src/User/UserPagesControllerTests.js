@@ -44,9 +44,13 @@ describe('UserPagesController', function () {
         },
       ],
       refProviders: {
-        mendeley: true,
-        zotero: true,
+        mendeley: { encrypted: 'aaaa' },
+        zotero: { encrypted: 'bbbb' },
       },
+    }
+    this.adminEmail = 'group-admin-email@overleaf.com'
+    this.subscriptionViewModel = {
+      memberGroupSubscriptions: [],
     }
 
     this.UserGetter = {
@@ -73,6 +77,11 @@ describe('UserPagesController', function () {
     this.PersonalAccessTokenManager = {
       listTokens: sinon.stub().returns([]),
     }
+    this.SubscriptionLocator = {
+      promises: {
+        getAdminEmail: sinon.stub().returns(this.adminEmail),
+      },
+    }
     this.UserPagesController = SandboxedModule.require(modulePath, {
       requires: {
         '@overleaf/settings': this.settings,
@@ -82,6 +91,7 @@ describe('UserPagesController', function () {
         '../Errors/ErrorController': this.ErrorController,
         '../Authentication/AuthenticationController':
           this.AuthenticationController,
+        '../Subscription/SubscriptionLocator': this.SubscriptionLocator,
         '../../infrastructure/Features': this.Features,
         '../../../../modules/oauth2-server/app/src/OAuthPersonalAccessTokenManager':
           this.PersonalAccessTokenManager,
@@ -309,6 +319,25 @@ describe('UserPagesController', function () {
       this.res.render = (page, opts) => {
         opts.projectSyncSuccessMessage.should.equal('Some Sync Success')
         expect(this.req.session.projectSyncSuccessMessage).to.not.exist
+        return done()
+      }
+      return this.UserPagesController.settingsPage(this.req, this.res)
+    })
+
+    it('should cast refProviders to booleans', function (done) {
+      this.res.render = function (page, opts) {
+        expect(opts.user.refProviders).to.deep.equal({
+          mendeley: true,
+          zotero: true,
+        })
+        return done()
+      }
+      return this.UserPagesController.settingsPage(this.req, this.res)
+    })
+
+    it('should send the correct managed user admin email', function (done) {
+      this.res.render = (page, opts) => {
+        expect(opts.currentManagedUserAdminEmail).to.equal(this.adminEmail)
         return done()
       }
       return this.UserPagesController.settingsPage(this.req, this.res)

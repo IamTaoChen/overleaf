@@ -8,11 +8,17 @@ import { formatTime, relativeDate } from '../../../utils/format-date'
 import { orderBy } from 'lodash'
 import { LoadedUpdate } from '../../services/types/update'
 import classNames from 'classnames'
-import { updateRangeForUpdate } from '../../utils/history-details'
+import {
+  updateRangeForUpdate,
+  ItemSelectionState,
+} from '../../utils/history-details'
 import { ActiveDropdown } from '../../hooks/use-dropdown-active-item'
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import { HistoryContextValue } from '../../context/types/history-context-value'
 import VersionDropdownContent from './dropdown/version-dropdown-content'
+import CompareItems from './dropdown/menu-item/compare-items'
+import CompareVersionDropdown from './dropdown/compare-version-dropdown'
+import { CompareVersionDropdownContentAllHistory } from './dropdown/compare-version-dropdown-content'
 
 type HistoryVersionProps = {
   update: LoadedUpdate
@@ -21,10 +27,12 @@ type HistoryVersionProps = {
   selectable: boolean
   faded: boolean
   showDivider: boolean
-  selected: boolean
+  selected: ItemSelectionState
   setSelection: HistoryContextValue['setSelection']
   dropdownOpen: boolean
   dropdownActive: boolean
+  compareDropdownOpen: boolean
+  compareDropdownActive: boolean
   setActiveDropdownItem: ActiveDropdown['setActiveDropdownItem']
   closeDropdownForItem: ActiveDropdown['closeDropdownForItem']
 }
@@ -40,18 +48,43 @@ function HistoryVersion({
   setSelection,
   dropdownOpen,
   dropdownActive,
+  compareDropdownOpen,
+  compareDropdownActive,
   setActiveDropdownItem,
   closeDropdownForItem,
 }: HistoryVersionProps) {
   const orderedLabels = orderBy(update.labels, ['created_at'], ['desc'])
 
+  const closeDropdown = useCallback(() => {
+    closeDropdownForItem(update, 'moreOptions')
+  }, [closeDropdownForItem, update])
+
+  const updateRange = updateRangeForUpdate(update)
+
   return (
     <>
-      {showDivider ? <hr className="history-version-divider" /> : null}
+      {showDivider ? (
+        <div
+          className={classNames({
+            'history-version-divider-container': true,
+            'version-element-within-selected ':
+              selected === 'withinSelected' || selected === 'selectedEdge',
+          })}
+        >
+          <hr className="history-version-divider" />
+        </div>
+      ) : null}
       {update.meta.first_in_day ? (
-        <time className="history-version-day">
-          {relativeDate(update.meta.end_ts)}
-        </time>
+        <div
+          className={classNames({
+            'version-element-within-selected ':
+              selected === 'withinSelected' || selected === 'selectedEdge',
+          })}
+        >
+          <time className="history-version-day">
+            {relativeDate(update.meta.end_ts)}
+          </time>
+        </div>
       ) : null}
       <div
         data-testid="history-version"
@@ -70,12 +103,15 @@ function HistoryVersion({
               id={`${update.fromV}_${update.toV}`}
               isOpened={dropdownOpen}
               setIsOpened={(isOpened: boolean) =>
-                setActiveDropdownItem({ item: update, isOpened })
+                setActiveDropdownItem({
+                  item: update,
+                  isOpened,
+                  whichDropDown: 'moreOptions',
+                })
               }
             >
               {dropdownActive ? (
                 <VersionDropdownContent
-                  selected={selected}
                   update={update}
                   projectId={projectId}
                   closeDropdownForItem={closeDropdownForItem}
@@ -83,6 +119,38 @@ function HistoryVersion({
               ) : null}
             </HistoryDropdown>
           )}
+
+          {selected !== 'selected' ? (
+            <div data-testid="compare-icon-version" className="pull-right">
+              {selected !== 'withinSelected' ? (
+                <CompareItems
+                  updateRange={updateRange}
+                  selected={selected}
+                  closeDropdown={closeDropdown}
+                />
+              ) : (
+                <CompareVersionDropdown
+                  id={`${update.fromV}_${update.toV}`}
+                  isOpened={compareDropdownOpen}
+                  setIsOpened={(isOpened: boolean) =>
+                    setActiveDropdownItem({
+                      item: update,
+                      isOpened,
+                      whichDropDown: 'compare',
+                    })
+                  }
+                >
+                  {compareDropdownActive ? (
+                    <CompareVersionDropdownContentAllHistory
+                      update={update}
+                      closeDropdownForItem={closeDropdownForItem}
+                    />
+                  ) : null}
+                </CompareVersionDropdown>
+              )}
+            </div>
+          ) : null}
+
           <div className="history-version-main-details">
             <time
               className="history-version-metadata-time"

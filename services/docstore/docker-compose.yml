@@ -6,7 +6,7 @@ version: "2.3"
 
 services:
   test_unit:
-    image: node:16.17.1
+    image: node:18.17.1
     volumes:
       - .:/overleaf/services/docstore
       - ../../node_modules:/overleaf/node_modules
@@ -20,7 +20,7 @@ services:
     user: node
 
   test_acceptance:
-    image: node:16.17.1
+    image: node:18.17.1
     volumes:
       - .:/overleaf/services/docstore
       - ../../node_modules:/overleaf/node_modules
@@ -60,7 +60,7 @@ services:
       retries: 20
 
   gcs:
-    image: fsouza/fake-gcs-server:v1.21.2
+    image: fsouza/fake-gcs-server:1.45.2
     command: ["--port=9090", "--scheme=http"]
     healthcheck:
       test: wget --quiet --output-document=/dev/null http://localhost:9090/storage/v1/b

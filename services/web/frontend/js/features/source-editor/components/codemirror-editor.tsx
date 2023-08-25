@@ -13,6 +13,7 @@ import CodeMirrorView from './codemirror-view'
 import CodeMirrorSearch from './codemirror-search'
 import { CodeMirrorToolbar } from './codemirror-toolbar'
 import { CodemirrorOutline } from './codemirror-outline'
+import { CodeMirrorCommandTooltip } from './codemirror-command-tooltip'
 import { dispatchTimer } from '../../../infrastructure/cm6-performance'
 
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
@@ -54,19 +55,20 @@ function CodeMirrorEditor() {
 
   return (
     <CodeMirrorStateContext.Provider value={state}>
-      <CodeMirrorViewContext.Provider value={viewRef.current}>
+      <CodeMirrorViewContextProvider value={viewRef.current}>
         <CodemirrorOutline />
         <CodeMirrorView />
         <FigureModal />
         <CodeMirrorSearch />
         <CodeMirrorToolbar />
+        <CodeMirrorCommandTooltip />
         {isReviewPanelReact && <ReviewPanel />}
         {sourceEditorComponents.map(
           ({ import: { default: Component }, path }) => (
             <Component key={path} />
           )
         )}
-      </CodeMirrorViewContext.Provider>
+      </CodeMirrorViewContextProvider>
     </CodeMirrorStateContext.Provider>
   )
 }
@@ -89,12 +91,14 @@ export const useCodeMirrorStateContext = (): EditorState => {
 
 const CodeMirrorViewContext = createContext<EditorView | undefined>(undefined)
 
+export const CodeMirrorViewContextProvider = CodeMirrorViewContext.Provider
+
 export const useCodeMirrorViewContext = (): EditorView => {
   const context = useContext(CodeMirrorViewContext)
 
   if (!context) {
     throw new Error(
-      'useCodeMirrorViewContext is only available inside CodeMirrorEditor'
+      'useCodeMirrorViewContext is only available inside CodeMirrorViewContextProvider'
     )
   }
 

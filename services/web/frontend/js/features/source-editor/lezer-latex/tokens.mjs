@@ -27,6 +27,7 @@ import {
   DocumentClassCtrlSeq,
   UsePackageCtrlSeq,
   HrefCtrlSeq,
+  UrlCtrlSeq,
   VerbCtrlSeq,
   LstInlineCtrlSeq,
   IncludeGraphicsCtrlSeq,
@@ -49,6 +50,7 @@ import {
   CloseParenCtrlSym,
   OpenBracketCtrlSym,
   CloseBracketCtrlSym,
+  LineBreakCtrlSym,
   // Sectioning commands
   BookCtrlSeq,
   PartCtrlSeq,
@@ -61,11 +63,21 @@ import {
   InputCtrlSeq,
   IncludeCtrlSeq,
   ItemCtrlSeq,
+  NewTheoremCtrlSeq,
+  TheoremStyleCtrlSeq,
   BibliographyCtrlSeq,
   BibliographyStyleCtrlSeq,
   CenteringCtrlSeq,
   ListEnvName,
   MaketitleCtrlSeq,
+  TextColorCtrlSeq,
+  ColorBoxCtrlSeq,
+  HLineCtrlSeq,
+  TopRuleCtrlSeq,
+  MidRuleCtrlSeq,
+  BottomRuleCtrlSeq,
+  TableEnvName,
+  MultiColumnCtrlSeq,
 } from './latex.terms.mjs'
 
 function nameChar(ch) {
@@ -193,73 +205,38 @@ const matchForward = (input, expected, offset = 0) => {
 export const verbatimTokenizer = new ExternalTokenizer(
   (input, stack) => {
     const delimiter = '\\end{' + stack.context.name + '}'
-    let offset = 0
-    let end = -1
-    for (;;) {
+    for (let offset = 0; ; offset++) {
       const next = input.peek(offset)
-      if (next === -1) {
-        end = offset - 1
-        break
+      if (next === -1 || matchForward(input, delimiter, offset)) {
+        return input.acceptToken(VerbatimContent, offset)
       }
-      if (matchForward(input, delimiter, offset)) {
-        // Found the end marker
-        end = offset - 1
-        break
-      }
-      offset++
     }
-    return input.acceptToken(VerbatimContent, end + 1)
   },
   { contextual: false }
 )
 
 // tokenizer for \href{...} and similar commands
 export const literalArgTokenizer = new ExternalTokenizer(
-  (input, stack) => {
-    const delimiter = '}'
-    let content = ''
-    let offset = 0
-    let end = -1
-    for (;;) {
+  input => {
+    for (let offset = 0; ; offset++) {
       const next = input.peek(offset)
-      if (next === -1) {
-        end = offset - 1
-        break
+      if (next === -1 || next === CHAR_CLOSE_BRACE) {
+        return input.acceptToken(LiteralArgContent, offset)
       }
-      content += String.fromCharCode(next)
-      if (content.slice(-delimiter.length) === delimiter) {
-        // found the '}'
-        end = offset - delimiter.length
-        break
-      }
-      offset++
     }
-    return input.acceptToken(LiteralArgContent, end + 1)
   },
   { contextual: false }
 )
 
 // tokenizer for literal content delimited by whitespace, such as in `\input foo.tex`
 export const spaceDelimitedLiteralArgTokenizer = new ExternalTokenizer(
-  (input, stack) => {
-    let content = ''
-    let offset = 0
-    let end = -1
-    for (;;) {
+  input => {
+    for (let offset = 0; ; offset++) {
       const next = input.peek(offset)
-      if (next === -1) {
-        end = offset - 1
-        break
+      if (next === -1 || next === CHAR_SPACE || next === CHAR_NEWLINE) {
+        return input.acceptToken(SpaceDelimitedLiteralArgContent, offset)
       }
-      content += String.fromCharCode(next)
-      if (content.slice(-1) === ' ' || content.slice(-1) === '\n') {
-        // found the whitespace
-        end = offset - 1
-        break
-      }
-      offset++
     }
-    return input.acceptToken(SpaceDelimitedLiteralArgContent, end + 1)
   },
   { contextual: false }
 )
@@ -457,6 +434,15 @@ const refCommands = new Set([
   '\\vrefrange',
   '\\Crefrange',
   '\\Crefrang',
+  '\\fref',
+  '\\pref',
+  '\\tref',
+  '\\Aref',
+  '\\Bref',
+  '\\Pref',
+  '\\Sref',
+  '\\vref',
+  '\\nameref',
 ])
 
 const refStarrableCommands = new Set([
@@ -606,6 +592,7 @@ const otherKnowncommands = {
   '\\documentclass': DocumentClassCtrlSeq,
   '\\usepackage': UsePackageCtrlSeq,
   '\\href': HrefCtrlSeq,
+  '\\url': UrlCtrlSeq,
   '\\verb': VerbCtrlSeq,
   '\\lstinline': LstInlineCtrlSeq,
   '\\includegraphics': IncludeGraphicsCtrlSeq,
@@ -632,9 +619,18 @@ const otherKnowncommands = {
   '\\include': IncludeCtrlSeq,
   '\\item': ItemCtrlSeq,
   '\\centering': CenteringCtrlSeq,
+  '\\newtheorem': NewTheoremCtrlSeq,
+  '\\theoremstyle': TheoremStyleCtrlSeq,
   '\\bibliography': BibliographyCtrlSeq,
   '\\bibliographystyle': BibliographyStyleCtrlSeq,
   '\\maketitle': MaketitleCtrlSeq,
+  '\\textcolor': TextColorCtrlSeq,
+  '\\colorbox': ColorBoxCtrlSeq,
+  '\\hline': HLineCtrlSeq,
+  '\\toprule': TopRuleCtrlSeq,
+  '\\midrule': MidRuleCtrlSeq,
+  '\\bottomrule': BottomRuleCtrlSeq,
+  '\\multicolumn': MultiColumnCtrlSeq,
 }
 // specializer for control sequences
 // return new tokens for specific control sequences
@@ -743,6 +739,7 @@ const otherKnownEnvNames = {
   subfigure: FigureEnvName,
   enumerate: ListEnvName,
   itemize: ListEnvName,
+  table: TableEnvName,
 }
 
 export const specializeEnvName = (name, terms) => {
@@ -766,6 +763,7 @@ const otherKnownCtrlSyms = {
   '\\)': CloseParenCtrlSym,
   '\\[': OpenBracketCtrlSym,
   '\\]': CloseBracketCtrlSym,
+  '\\\\': LineBreakCtrlSym,
 }
 
 export const specializeCtrlSym = (name, terms) => {

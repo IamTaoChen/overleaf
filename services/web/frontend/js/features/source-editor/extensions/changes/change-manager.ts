@@ -10,6 +10,12 @@ import { EditorView, ViewUpdate } from '@codemirror/view'
 import { CurrentDoc } from '../../../../../../types/current-doc'
 import { fullHeightCoordsAtPos } from '../../utils/layer'
 import { debounce } from 'lodash'
+import getMeta from '../../../../utils/meta'
+
+// If a toolbar row sits alongside the review panel, the review panel entries need to be shifted down by 32px.
+// Once the review panel is always inside the editor, this offset can be removed.
+const offsetTop =
+  getMeta('ol-showSourceToolbar') && !getMeta('ol-isReviewPanelReact') ? 32 : 0
 
 // With less than this number of entries, don't bother culling to avoid
 // little UI jumps when scrolling.
@@ -24,6 +30,17 @@ export const dispatchEditorEvent = (type: string, payload?: unknown) => {
     )
   }, 0)
 }
+
+export const dispatchReviewPanelLayout = (force = false) => {
+  window.dispatchEvent(
+    new CustomEvent('review-panel:layout', { detail: { force } })
+  )
+}
+
+const scheduleDispatchReviewPanelLayout = debounce(
+  dispatchReviewPanelLayout,
+  10
+)
 
 export type ChangeManager = {
   initialize: () => void
@@ -66,7 +83,13 @@ export const createChangeManager = (
         const y = Math.round(coords.top - contentRect.top - editorPaddingTop)
         const height = Math.round(coords.bottom - coords.top)
 
-        entry.screenPos = { y, height, editorPaddingTop }
+        if (!entry.screenPos) {
+          visibilityChanged = true
+        }
+
+        entry.screenPos = { y: y + offsetTop, height, editorPaddingTop }
+      } else {
+        entry.screenPos = null
       }
 
       if (allVisible) {
@@ -284,6 +307,11 @@ export const createChangeManager = (
         if (changed) {
           dispatchEditorEvent('track-changes:visibility_changed')
         }
+        // Ensure the layout is updated once the review panel entries have
+        // updated in the React review panel. The use of a timeout is bad but
+        // the timings are a bit of a mess and will be improved when the review
+        // panel state is migrated away from Angular
+        scheduleDispatchReviewPanelLayout()
         break
       }
 
@@ -291,12 +319,18 @@ export const createChangeManager = (
         acceptChanges(payload)
         view.dispatch(buildChangeMarkers())
         broadcastChange()
+        // Dispatch a focus:changed event to force the Angular controller to
+        // reassemble the list of entries without bulk actions
+        dispatchFocusChangedEvent(view.state)
         break
       }
 
       case 'changes:reject': {
         view.dispatch(rejectChanges(payload))
         broadcastChange()
+        // Dispatch a focus:changed event to force the Angular controller to
+        // reassemble the list of entries without bulk actions
+        dispatchFocusChangedEvent(view.state)
         break
       }
 
@@ -348,7 +382,6 @@ export const createChangeManager = (
             })
           )
         }
-
         break
       }
     }

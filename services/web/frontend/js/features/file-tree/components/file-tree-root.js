@@ -18,6 +18,7 @@ import { useDroppable } from '../contexts/file-tree-draggable'
 
 import { useFileTreeSocketListener } from '../hooks/file-tree-socket-listener'
 import FileTreeModalCreateFile from './modals/file-tree-modal-create-file'
+import FileTreeInner from './file-tree-inner'
 
 const FileTreeRoot = React.memo(function FileTreeRoot({
   refProviders,
@@ -48,9 +49,9 @@ const FileTreeRoot = React.memo(function FileTreeRoot({
       {isConnected ? null : <div className="disconnected-overlay" />}
       <FileTreeToolbar />
       <FileTreeContextMenu />
-      <div className="file-tree-inner">
+      <FileTreeInner>
         <FileTreeRootFolder />
-      </div>
+      </FileTreeInner>
       <FileTreeModalDelete />
       <FileTreeModalCreateFile />
       <FileTreeModalCreateFolder />
@@ -75,6 +76,7 @@ function FileTreeRootFolder() {
         classes={{ root: 'file-tree-list' }}
         dropRef={dropRef}
         isOver={isOver}
+        dataTestId="file-tree-list-root"
       >
         <li className="bottom-buffer" />
       </FileTreeFolderList>

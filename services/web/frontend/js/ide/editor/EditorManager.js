@@ -17,6 +17,7 @@ import _ from 'lodash'
 import Document from './Document'
 import './components/spellMenu'
 import './directives/aceEditor'
+import './directives/formattingButtons'
 import './directives/toggleSwitch'
 import './controllers/SavingNotificationController'
 import './controllers/CompileButton'
@@ -45,16 +46,12 @@ export default EditorManager = (function () {
         trackChanges: false,
         wantTrackChanges: false,
         docTooLongErrorShown: false,
-        showRichText: this.showRichText(),
         showVisual: this.showVisual(),
         newSourceEditor: this.newSourceEditor(),
         showSymbolPalette: false,
         toggleSymbolPalette: () => {
           const newValue = !this.$scope.editor.showSymbolPalette
           this.$scope.editor.showSymbolPalette = newValue
-          if (newValue && this.$scope.editor.showGalileo) {
-            this.$scope.editor.toggleGalileoPanel()
-          }
           ide.$scope.$emit('south-pane-toggled', newValue)
           eventTracking.sendMB(
             newValue ? 'symbol-palette-show' : 'symbol-palette-hide'
@@ -63,24 +60,6 @@ export default EditorManager = (function () {
         insertSymbol: symbol => {
           ide.$scope.$emit('editor:replace-selection', symbol.command)
           eventTracking.sendMB('symbol-palette-insert')
-        },
-        showGalileo: false,
-        toggleGalileoPanel: () => {
-          const newValue = !this.$scope.editor.showGalileo
-          this.$scope.editor.showGalileo = newValue
-          if (newValue && this.$scope.editor.showSymbolPalette) {
-            this.$scope.editor.toggleSymbolPalette()
-          }
-          ide.$scope.$emit('south-pane-toggled', newValue)
-          eventTracking.sendMB(newValue ? 'galileo-show' : 'galileo-hide')
-        },
-        galileoActivated: false,
-        toggleGalileo: () => {
-          const newValue = !this.$scope.editor.galileoActivated
-          this.$scope.editor.galileoActivated = newValue
-          eventTracking.sendMB(
-            newValue ? 'galileo-activated' : 'galileo-disabled'
-          )
         },
         multiSelectedCount: 0,
       }
@@ -156,6 +135,18 @@ export default EditorManager = (function () {
         const { doc, ...options } = event.detail
         this.openDoc(doc, options)
       })
+
+      window.addEventListener('editor:open-file', event => {
+        const { name, ...options } = event.detail
+        for (const extension of ['', '.tex']) {
+          const path = `${name}${extension}`
+          const doc = ide.fileTreeManager.findEntityByPath(path)
+          if (doc) {
+            this.openDoc(doc, options)
+            break
+          }
+        }
+      })
     }
 
     getEditorType() {
@@ -172,22 +163,7 @@ export default EditorManager = (function () {
       return editorType
     }
 
-    showRichText() {
-      if (getMeta('ol-richTextVariant') === 'cm6') {
-        return false
-      }
-
-      return (
-        this.localStorage(`editor.mode.${this.$scope.project_id}`) ===
-        'rich-text'
-      )
-    }
-
     showVisual() {
-      if (getMeta('ol-richTextVariant') !== 'cm6') {
-        return false
-      }
-
       return (
         this.localStorage(`editor.mode.${this.$scope.project_id}`) ===
         'rich-text'
