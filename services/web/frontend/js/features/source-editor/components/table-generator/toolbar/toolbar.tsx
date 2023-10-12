@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react'
 import { useSelectionContext } from '../contexts/selection-context'
 import { ToolbarButton } from './toolbar-button'
 import { ToolbarButtonMenu } from './toolbar-button-menu'
-import { ToolbarDropdown } from './toolbar-dropdown'
+import { ToolbarDropdown, ToolbarDropdownItem } from './toolbar-dropdown'
 import MaterialIcon from '../../../../../shared/components/material-icon'
 import {
   BorderTheme,
@@ -19,38 +19,80 @@ import {
 } from './commands'
 import { useCodeMirrorViewContext } from '../../codemirror-editor'
 import { useTableContext } from '../contexts/table-context'
-
-const borderThemeLabel = (theme: BorderTheme | null) => {
-  switch (theme) {
-    case BorderTheme.FULLY_BORDERED:
-      return 'All borders'
-    case BorderTheme.NO_BORDERS:
-      return 'No borders'
-    default:
-      return 'Custom borders'
-  }
-}
+import { useTabularContext } from '../contexts/tabular-context'
+import { useTranslation } from 'react-i18next'
+import { FeedbackBadge } from '@/shared/components/feedback-badge'
 
 export const Toolbar = memo(function Toolbar() {
   const { selection, setSelection } = useSelectionContext()
   const view = useCodeMirrorViewContext()
-  const { positions, rowSeparators, cellSeparators, tableEnvironment, table } =
-    useTableContext()
+  const {
+    positions,
+    rowSeparators,
+    cellSeparators,
+    tableEnvironment,
+    table,
+    directTableChild,
+  } = useTableContext()
+  const { showHelp } = useTabularContext()
+  const { t } = useTranslation()
 
-  const borderDropdownLabel = useMemo(
-    () => borderThemeLabel(table.getBorderTheme()),
-    [table]
-  )
+  const borderDropdownLabel = useMemo(() => {
+    switch (table.getBorderTheme()) {
+      case BorderTheme.FULLY_BORDERED:
+        return t('all_borders')
+      case BorderTheme.NO_BORDERS:
+        return t('no_borders')
+      default:
+        return t('custom_borders')
+    }
+  }, [table, t])
 
   const captionLabel = useMemo(() => {
     if (!tableEnvironment?.caption) {
-      return 'No caption'
+      return t('no_caption')
     }
     if (tableEnvironment.caption.from < positions.tabular.from) {
-      return 'Caption above'
+      return t('caption_above')
     }
-    return 'Caption below'
-  }, [tableEnvironment, positions.tabular.from])
+    return t('caption_below')
+  }, [tableEnvironment, positions.tabular.from, t])
+
+  const currentAlignment = useMemo(() => {
+    if (!selection) {
+      return undefined
+    }
+    if (selection.isMergedCellSelected(table)) {
+      const cell = table.getCell(selection.from.row, selection.from.cell)
+      if (cell.multiColumn) {
+        // NOTE: Assumes merged columns can only have one internal column
+        return cell.multiColumn.columns.specification[0].alignment
+      }
+    }
+    const { minX, maxX } = selection.normalized()
+    const alignment = table.columns[minX].alignment
+    for (let x = minX + 1; x <= maxX; x++) {
+      if (table.columns[x].alignment !== alignment) {
+        return undefined
+      }
+    }
+    return alignment
+  }, [selection, table])
+
+  const alignmentIcon = useMemo(() => {
+    switch (currentAlignment) {
+      case 'left':
+        return 'format_align_left'
+      case 'center':
+        return 'format_align_center'
+      case 'right':
+        return 'format_align_right'
+      case 'paragraph':
+        return 'format_align_justify'
+      default:
+        return 'format_align_left'
+    }
+  }, [currentAlignment])
 
   if (!selection) {
     return null
@@ -60,93 +102,92 @@ export const Toolbar = memo(function Toolbar() {
 
   return (
     <div className="table-generator-floating-toolbar">
-      <ToolbarDropdown
-        id="table-generator-caption-dropdown"
-        label={captionLabel}
-        disabled={!tableEnvironment}
-      >
-        <button
-          className="ol-cm-toolbar-menu-item"
-          role="menuitem"
-          type="button"
-          onClick={() => {
-            removeCaption(view, tableEnvironment)
-          }}
+      <div className="table-generator-button-group">
+        <ToolbarDropdown
+          id="table-generator-caption-dropdown"
+          label={captionLabel}
+          disabled={!tableEnvironment || !directTableChild}
+          disabledTooltip={t(
+            'to_insert_or_move_a_caption_make_sure_tabular_is_directly_within_table'
+          )}
         >
-          No caption
-        </button>
-        <button
-          className="ol-cm-toolbar-menu-item"
-          role="menuitem"
-          type="button"
-          onClick={() => {
-            moveCaption(view, positions, 'above', tableEnvironment)
-          }}
+          <ToolbarDropdownItem
+            id="table-generator-caption-none"
+            command={() => {
+              removeCaption(view, tableEnvironment)
+            }}
+          >
+            {t('no_caption')}
+          </ToolbarDropdownItem>
+          <ToolbarDropdownItem
+            id="table-generator-caption-above"
+            command={() => {
+              moveCaption(view, positions, 'above', tableEnvironment)
+            }}
+          >
+            {t('caption_above')}
+          </ToolbarDropdownItem>
+          <ToolbarDropdownItem
+            id="table-generator-caption-below"
+            command={() => {
+              moveCaption(view, positions, 'below', tableEnvironment)
+            }}
+          >
+            {t('caption_below')}
+          </ToolbarDropdownItem>
+        </ToolbarDropdown>
+        <ToolbarDropdown
+          id="table-generator-borders-dropdown"
+          label={borderDropdownLabel}
         >
-          Caption above
-        </button>
-        <button
-          className="ol-cm-toolbar-menu-item"
-          role="menuitem"
-          type="button"
-          onClick={() => {
-            moveCaption(view, positions, 'below', tableEnvironment)
-          }}
-        >
-          Caption below
-        </button>
-      </ToolbarDropdown>
-      <ToolbarDropdown
-        id="table-generator-borders-dropdown"
-        label={borderDropdownLabel}
-      >
-        <button
-          className="ol-cm-toolbar-menu-item"
-          role="menuitem"
-          type="button"
-          onClick={() => {
-            setBorders(
-              view,
-              BorderTheme.FULLY_BORDERED,
-              positions,
-              rowSeparators,
-              table
-            )
-          }}
-        >
-          <MaterialIcon type="border_all" />
-          <span className="table-generator-button-label">All borders</span>
-        </button>
-        <button
-          className="ol-cm-toolbar-menu-item"
-          role="menuitem"
-          type="button"
-          onClick={() => {
-            setBorders(
-              view,
-              BorderTheme.NO_BORDERS,
-              positions,
-              rowSeparators,
-              table
-            )
-          }}
-        >
-          <MaterialIcon type="border_clear" />
-          <span className="table-generator-button-label">No borders</span>
-        </button>
-        <div className="table-generator-border-options-coming-soon">
-          <div className="info-icon">
-            <MaterialIcon type="info" />
+          <ToolbarDropdownItem
+            id="table-generator-borders-fully-bordered"
+            command={() => {
+              setBorders(
+                view,
+                BorderTheme.FULLY_BORDERED,
+                positions,
+                rowSeparators,
+                table
+              )
+            }}
+          >
+            <MaterialIcon type="border_all" />
+            <span className="table-generator-button-label">
+              {t('all_borders')}
+            </span>
+          </ToolbarDropdownItem>
+          <ToolbarDropdownItem
+            id="table-generator-borders-no-borders"
+            command={() => {
+              setBorders(
+                view,
+                BorderTheme.NO_BORDERS,
+                positions,
+                rowSeparators,
+                table
+              )
+            }}
+          >
+            <MaterialIcon type="border_clear" />
+            <span className="table-generator-button-label">
+              {t('no_borders')}
+            </span>
+          </ToolbarDropdownItem>
+          <div className="table-generator-border-options-coming-soon">
+            <div className="info-icon">
+              <MaterialIcon type="info" />
+            </div>
+            {t('more_options_for_border_settings_coming_soon')}
           </div>
-          More options for border settings coming soon.
-        </div>
-      </ToolbarDropdown>
+        </ToolbarDropdown>
+      </div>
       <div className="table-generator-button-group">
         <ToolbarButtonMenu
-          label="Alignment"
-          icon="format_align_left"
+          label={t('alignment')}
+          icon={alignmentIcon}
           id="table-generator-align-dropdown"
-          disabledLabel="Select a column or a merged cell to align"
+          disabledLabel={t('select_a_column_or_a_merged_cell_to_align')}
           disabled={
             !selection.isColumnSelected(selection.from.cell, table) &&
             !selection.isMergedCellSelected(table)
@@ -155,7 +196,7 @@ export const Toolbar = memo(function Toolbar() {
           <ToolbarButton
             icon="format_align_left"
             id="table-generator-align-left"
-            label="Left"
+            label={t('left')}
             command={() => {
               setAlignment(view, selection, 'left', positions, table)
             }}
@@ -163,7 +204,7 @@ export const Toolbar = memo(function Toolbar() {
           <ToolbarButton
             icon="format_align_center"
             id="table-generator-align-center"
-            label="Center"
+            label={t('center')}
             command={() => {
               setAlignment(view, selection, 'center', positions, table)
             }}
@@ -171,7 +212,7 @@ export const Toolbar = memo(function Toolbar() {
           <ToolbarButton
             icon="format_align_right"
             id="table-generator-align-right"
-            label="Right"
+            label={t('right')}
             command={() => {
               setAlignment(view, selection, 'right', positions, table)
             }}
@@ -182,15 +223,15 @@ export const Toolbar = memo(function Toolbar() {
           id="table-generator-merge-cells"
           label={
             selection.isMergedCellSelected(table)
-              ? 'Unmerge cells'
-              : 'Merge cells'
+              ? t('unmerge_cells')
+              : t('merge_cells')
           }
           active={selection.isMergedCellSelected(table)}
           disabled={
             !selection.isMergedCellSelected(table) &&
             !selection.isMergeableCells(table)
           }
-          disabledLabel="Select cells in a row to merge"
+          disabledLabel={t('select_cells_in_a_single_row_to_merge')}
           command={() => {
             if (selection.isMergedCellSelected(table)) {
               unmergeCells(view, selection, table)
@@ -202,8 +243,8 @@ export const Toolbar = memo(function Toolbar() {
         <ToolbarButton
           icon="delete"
           id="table-generator-remove-column-row"
-          label="Delete row or column"
-          disabledLabel="Select a row or a column to delete"
+          label={t('delete_row_or_column')}
+          disabledLabel={t('select_a_row_or_a_column_to_delete')}
           disabled={
             (!selection.isAnyRowSelected(table) &&
               !selection.isAnyColumnSelected(table)) ||
@@ -225,14 +266,12 @@ export const Toolbar = memo(function Toolbar() {
           id="table-generator-add-dropdown"
           btnClassName="table-generator-toolbar-button"
           icon="add"
-          tooltip="Insert"
+          tooltip={t('insert')}
           disabled={!selection}
         >
-          <button
-            className="ol-cm-toolbar-menu-item"
-            role="menuitem"
-            type="button"
-            onClick={() => {
+          <ToolbarDropdownItem
+            id="table-generator-insert-column-left"
+            command={() => {
               setSelection(
                 insertColumn(view, selection, positions, false, table)
               )
@@ -240,15 +279,13 @@ export const Toolbar = memo(function Toolbar() {
           >
             <span className="table-generator-button-label">
               {columnsToInsert === 1
-                ? 'Insert column left'
-                : `Insert ${columnsToInsert} columns left`}
+                ? t('insert_column_left')
+                : t('insert_x_columns_left', { columns: columnsToInsert })}
             </span>
-          </button>
-          <button
-            className="ol-cm-toolbar-menu-item"
-            role="menuitem"
-            type="button"
-            onClick={() => {
+          </ToolbarDropdownItem>
+          <ToolbarDropdownItem
+            id="table-generator-insert-column-right"
+            command={() => {
               setSelection(
                 insertColumn(view, selection, positions, true, table)
               )
@@ -256,52 +293,87 @@ export const Toolbar = memo(function Toolbar() {
           >
             <span className="table-generator-button-label">
               {columnsToInsert === 1
-                ? 'Insert column right'
-                : `Insert ${columnsToInsert} columns right`}
+                ? t('insert_column_right')
+                : t('insert_x_columns_right', { columns: columnsToInsert })}
             </span>
-          </button>
+          </ToolbarDropdownItem>
           <hr />
-          <button
-            className="ol-cm-toolbar-menu-item"
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              setSelection(insertRow(view, selection, positions, false, table))
+          <ToolbarDropdownItem
+            id="table-generator-insert-row-above"
+            command={() => {
+              setSelection(
+                insertRow(
+                  view,
+                  selection,
+                  positions,
+                  false,
+                  rowSeparators,
+                  table
+                )
+              )
             }}
           >
             <span className="table-generator-button-label">
               {rowsToInsert === 1
-                ? 'Insert row above'
-                : `Insert ${rowsToInsert} rows above`}
+                ? t('insert_row_above')
+                : t('insert_x_rows_above', { rows: rowsToInsert })}
             </span>
-          </button>
-          <button
-            className="ol-cm-toolbar-menu-item"
-            role="menuitem"
-            type="button"
-            onClick={() => {
-              setSelection(insertRow(view, selection, positions, true, table))
+          </ToolbarDropdownItem>
+          <ToolbarDropdownItem
+            id="table-generator-insert-row-below"
+            command={() => {
+              setSelection(
+                insertRow(
+                  view,
+                  selection,
+                  positions,
+                  true,
+                  rowSeparators,
+                  table
+                )
+              )
             }}
           >
             <span className="table-generator-button-label">
               {rowsToInsert === 1
-                ? 'Insert row below'
-                : `Insert ${rowsToInsert} rows below`}
+                ? t('insert_row_below')
+                : t('insert_x_rows_below', { rows: rowsToInsert })}
             </span>
-          </button>
+          </ToolbarDropdownItem>
         </ToolbarDropdown>
       </div>
       <div className="table-generator-button-group">
         <ToolbarButton
           icon="delete_forever"
           id="table-generator-remove-table"
-          label="Delete table"
+          label={t('delete_table')}
           command={() => {
             removeNodes(view, tableEnvironment?.table ?? positions.tabular)
             view.focus()
           }}
         />
+        <ToolbarButton
+          icon="help"
+          id="table-generator-show-help"
+          label={t('help')}
+          command={showHelp}
+        />
+        <div className="toolbar-beta-badge">
+          <FeedbackBadge
+            id="table-generator-feedback"
+            url="https://forms.gle/ri3fzV1oQDAjmfmD7"
+            text={<FeedbackBadgeContent />}
+          />
+        </div>
       </div>
     </div>
   )
 })
+
+const FeedbackBadgeContent = () => (
+  <>
+    We have a new way to insert and edit tables.
+    <br />
+    Click to give feedback
+  </>
+)

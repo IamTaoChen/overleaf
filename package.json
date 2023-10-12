@@ -15,7 +15,6 @@
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^4.0.0",
     "eslint-plugin-promise": "^6.0.0",
-    "nodemon": "^2.0.16",
     "prettier": "2.5.1"
   },
   "scripts": {
@@ -49,7 +48,6 @@
     "services/third-party-datastore",
     "services/third-party-references",
     "services/tpdsworker",
-    "services/track-changes",
     "services/web",
     "tools/storybook"
   ]

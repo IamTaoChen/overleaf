@@ -32,11 +32,13 @@ function PdfHybridDownloadButton() {
       <Button
         onClick={handleOnClick}
         bsStyle="link"
+        draggable="false"
         disabled={!pdfDownloadUrl}
         download
         href={pdfDownloadUrl || '#'}
         target="_blank"
         style={{ pointerEvents: 'auto' }}
+        aria-label={t('download_pdf')}
       >
         <Icon type="download" fw />
       </Button>

@@ -1,6 +1,5 @@
 const SessionManager = require('../Authentication/SessionManager')
 const SubscriptionHandler = require('./SubscriptionHandler')
-const PlansLocator = require('./PlansLocator')
 const SubscriptionViewModelBuilder = require('./SubscriptionViewModelBuilder')
 const LimitationsManager = require('./LimitationsManager')
 const RecurlyWrapper = require('./RecurlyWrapper')
@@ -13,17 +12,15 @@ const plansConfig = require('./plansConfig')
 const interstitialPaymentConfig = require('./interstitialPaymentConfig')
 const GroupPlansData = require('./GroupPlansData')
 const V1SubscriptionManager = require('./V1SubscriptionManager')
-const Errors = require('../Errors/Errors')
-const HttpErrorHandler = require('../Errors/HttpErrorHandler')
-const SubscriptionErrors = require('./Errors')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const RecurlyEventHandler = require('./RecurlyEventHandler')
 const { expressify } = require('../../util/promises')
 const OError = require('@overleaf/o-error')
 const SplitTestHandler = require('../SplitTests/SplitTestHandler')
 const SubscriptionHelper = require('./SubscriptionHelper')
-const Features = require('../../infrastructure/Features')
-const UserGetter = require('../User/UserGetter')
+const AuthorizationManager = require('../Authorization/AuthorizationManager')
+const Modules = require('../../infrastructure/Modules')
+const async = require('async')
 
 const groupPlanModalOptions = Settings.groupPlanModalOptions
 const validGroupPlanModalOptions = {
@@ -130,7 +127,7 @@ async function plansPage(req, res) {
     plansPageViewSegmentation[inrGeoBannerSplitTestName] = inrGeoBannerVariant
   }
 
-  let showBackToSchoolBanner
+  let showBackToSchoolBanner = true
   const userId = SessionManager.getLoggedInUserId(req.session)
   if (userId) {
     const usersBestSubscription =
@@ -145,6 +142,24 @@ async function plansPage(req, res) {
     'plans-page-view',
     plansPageViewSegmentation
   )
+
+  let showNewCompileTimeoutVariant = false
+  const compileAssignment = await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'compile-backend-class-n2d'
+  )
+  if (compileAssignment?.variant === 'n2d') {
+    const timeoutAssignment = await SplitTestHandler.promises.getAssignment(
+      req,
+      res,
+      'compile-timeout-20s'
+    )
+    if (timeoutAssignment?.variant === '20s') {
+      // there may be anonymous/logged out users in this group
+      showNewCompileTimeoutVariant = true
+    }
+  }
 
   res.render('subscriptions/plans', {
     title: 'plans_and_pricing',
@@ -164,83 +179,8 @@ async function plansPage(req, res) {
     showInrGeoBanner,
     showBackToSchoolBanner,
     annualTrialsAssignment: annualTrialsAssignment?.variant,
+    showNewCompileTimeoutVariant,
   })
-}
-
-/**
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- * @returns {Promise<void>}
- */
-async function paymentPage(req, res) {
-  const user = SessionManager.getSessionUser(req.session)
-  const plan = PlansLocator.findLocalPlanInSettings(req.query.planCode)
-  if (!plan) {
-    return HttpErrorHandler.unprocessableEntity(req, res, 'Plan not found')
-  }
-  const hasSubscription =
-    await LimitationsManager.promises.userHasV1OrV2Subscription(user)
-  if (hasSubscription) {
-    res.redirect('/user/subscription?hasSubscription=true')
-  } else {
-    // LimitationsManager.userHasV2Subscription only checks Mongo. Double check with
-    // Recurly as well at this point (we don't do this most places for speed).
-    const valid =
-      await SubscriptionHandler.promises.validateNoSubscriptionInRecurly(
-        user._id
-      )
-    if (!valid) {
-      res.redirect('/user/subscription?hasSubscription=true')
-    } else {
-      let currency = null
-      if (req.query.currency) {
-        const queryCurrency = req.query.currency.toUpperCase()
-        if (GeoIpLookup.isValidCurrencyParam(queryCurrency)) {
-          currency = queryCurrency
-        }
-      }
-      const { recommendedCurrency, countryCode } =
-        await _getRecommendedCurrency(req, res)
-      if (recommendedCurrency && currency == null) {
-        currency = recommendedCurrency
-      }
-
-      // Prevent checkout for users without a confirmed primary email address
-      const userData = await UserGetter.promises.getUser(user._id, {
-        email: 1,
-        emails: 1,
-      })
-      const userPrimaryEmail = userData.emails.find(
-        emailEntry => emailEntry.email === userData.email
-      )
-      if (userPrimaryEmail?.confirmedAt == null) {
-        return res.render('subscriptions/unconfirmed-primary-email', {
-          title: 'confirm_email',
-          email: userData.email,
-        })
-      }
-
-      // Block web sales to restricted countries
-      if (['CU', 'IR', 'KP', 'RU', 'SY', 'VE'].includes(countryCode)) {
-        return res.render('subscriptions/restricted-country', {
-          title: 'restricted',
-        })
-      }
-
-      res.render('subscriptions/new-react', {
-        title: 'subscribe',
-        currency,
-        countryCode,
-        plan,
-        planCode: req.query.planCode,
-        couponCode: req.query.cc,
-        showCouponField: !!req.query.scf,
-        itm_campaign: req.query.itm_campaign,
-        itm_content: req.query.itm_content,
-        itm_referrer: req.query.itm_referrer,
-      })
-    }
-  }
 }
 
 function formatGroupPlansDataForDash() {
@@ -278,8 +218,28 @@ async function userSubscriptionPage(req, res) {
     SubscriptionViewModelBuilder.buildPlansListForSubscriptionDash(
       personalSubscription?.plan
     )
+  let designSystemUpdatesAssignment = { variant: 'default' }
+  try {
+    designSystemUpdatesAssignment =
+      await SplitTestHandler.promises.getAssignment(
+        req,
+        res,
+        'design-system-updates'
+      )
+  } catch (error) {
+    logger.error(
+      { err: error },
+      'failed to get "design-system-updates" split test assignment'
+    )
+  }
 
-  AnalyticsManager.recordEventForSession(req.session, 'subscription-page-view')
+  AnalyticsManager.recordEventForSession(
+    req.session,
+    'subscription-page-view',
+    {
+      'split-test-design-system-updates': designSystemUpdatesAssignment.variant,
+    }
+  )
 
   const cancelButtonAssignment = await SplitTestHandler.promises.getAssignment(
     req,
@@ -292,15 +252,30 @@ async function userSubscriptionPage(req, res) {
   const groupPlansDataForDash = formatGroupPlansDataForDash()
 
   // display the Group Settings button only to admins of group subscriptions with the Managed Users feature available
-  const groupSettingsEnabledFor = (managedGroupSubscriptions || [])
-    .filter(
-      subscription =>
-        Features.hasFeature('saas') &&
-        subscription?.features?.managedUsers &&
-        (subscription.admin_id._id || subscription.admin_id).toString() ===
+  let groupSettingsEnabledFor
+  try {
+    const managedGroups = await async.filter(
+      managedGroupSubscriptions || [],
+      async subscription => {
+        const results = await Modules.promises.hooks.fire(
+          'hasManagedUsersFeature',
+          subscription
+        )
+        const isGroupAdmin =
+          (subscription.admin_id._id || subscription.admin_id).toString() ===
           user._id.toString()
+        return results?.[0] === true && isGroupAdmin
+      }
     )
-    .map(subscription => subscription._id.toString())
+    groupSettingsEnabledFor = managedGroups.map(subscription =>
+      subscription._id.toString()
+    )
+  } catch (error) {
+    logger.error(
+      { err: error },
+      'Failed to list groups with group settings enabled'
+    )
+  }
 
   const data = {
     title: 'your_subscription',
@@ -419,6 +394,24 @@ async function interstitialPaymentPage(req, res) {
         templatePath = 'subscriptions/interstitial-payment'
     }
 
+    let showNewCompileTimeoutVariant = false
+    const compileAssignment = await SplitTestHandler.promises.getAssignment(
+      req,
+      res,
+      'compile-backend-class-n2d'
+    )
+    if (compileAssignment?.variant === 'n2d') {
+      const timeoutAssignment = await SplitTestHandler.promises.getAssignment(
+        req,
+        res,
+        'compile-timeout-20s'
+      )
+      if (timeoutAssignment?.variant === '20s') {
+        // there may be anonymous/logged out users in this group
+        showNewCompileTimeoutVariant = true
+      }
+    }
+
     res.render(templatePath, {
       title: 'subscribe',
       itm_content: req.query?.itm_content,
@@ -428,54 +421,8 @@ async function interstitialPaymentPage(req, res) {
       interstitialPaymentConfig,
       showSkipLink,
       showInrGeoBanner,
+      showNewCompileTimeoutVariant,
     })
-  }
-}
-
-async function createSubscription(req, res) {
-  const user = SessionManager.getSessionUser(req.session)
-  const recurlyTokenIds = {
-    billing: req.body.recurly_token_id,
-    threeDSecureActionResult:
-      req.body.recurly_three_d_secure_action_result_token_id,
-  }
-  const { subscriptionDetails } = req.body
-
-  const hasSubscription =
-    await LimitationsManager.promises.userHasV1OrV2Subscription(user)
-
-  if (hasSubscription) {
-    logger.warn({ userId: user._id }, 'user already has subscription')
-    return res.sendStatus(409) // conflict
-  }
-
-  try {
-    await SubscriptionHandler.promises.createSubscription(
-      user,
-      subscriptionDetails,
-      recurlyTokenIds
-    )
-
-    res.sendStatus(201)
-  } catch (err) {
-    if (
-      err instanceof SubscriptionErrors.RecurlyTransactionError ||
-      err instanceof Errors.InvalidError
-    ) {
-      logger.error({ err }, 'recurly transaction error, potential 422')
-      HttpErrorHandler.unprocessableEntity(
-        req,
-        res,
-        err.message,
-        OError.getFullInfo(err).public
-      )
-    } else {
-      logger.warn(
-        { err, userId: user._id },
-        'something went wrong creating subscription'
-      )
-      throw err
-    }
   }
 }
 
@@ -780,9 +727,15 @@ async function redirectToHostedPage(req, res) {
 }
 
 async function _getRecommendedCurrency(req, res) {
-  const currencyLookup = await GeoIpLookup.promises.getCurrencyCode(
-    req.query?.ip || req.ip
-  )
+  const userId = SessionManager.getLoggedInUserId(req.session)
+  let ip = req.ip
+  if (
+    req.query?.ip &&
+    (await AuthorizationManager.promises.isUserSiteAdmin(userId))
+  ) {
+    ip = req.query.ip
+  }
+  const currencyLookup = await GeoIpLookup.promises.getCurrencyCode(ip)
   const countryCode = currencyLookup.countryCode
   let assignmentINR, assignmentLATAM
   let recommendedCurrency = currencyLookup.currencyCode
@@ -830,10 +783,8 @@ async function _getRecommendedCurrency(req, res) {
 
 module.exports = {
   plansPage: expressify(plansPage),
-  paymentPage: expressify(paymentPage),
   userSubscriptionPage: expressify(userSubscriptionPage),
   interstitialPaymentPage: expressify(interstitialPaymentPage),
-  createSubscription: expressify(createSubscription),
   successfulSubscription: expressify(successfulSubscription),
   cancelSubscription,
   canceledSubscription,
@@ -849,4 +800,7 @@ module.exports = {
   recurlyNotificationParser,
   refreshUserFeatures: expressify(refreshUserFeatures),
   redirectToHostedPage: expressify(redirectToHostedPage),
+  promises: {
+    getRecommendedCurrency: _getRecommendedCurrency,
+  },
 }

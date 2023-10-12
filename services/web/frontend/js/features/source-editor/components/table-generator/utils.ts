@@ -12,6 +12,24 @@ export type RowPosition = {
   hlines: { from: number; to: number }[]
 }
 
+function parseArgument(spec: string, startIndex: number): number {
+  if (spec.charAt(startIndex) !== '{') {
+    throw new Error('Missing opening brace')
+  }
+  let depth = 0
+  for (let i = startIndex; i < spec.length; i++) {
+    if (spec.charAt(i) === '{') {
+      depth++
+    } else if (spec.charAt(i) === '}') {
+      depth--
+    }
+    if (depth === 0) {
+      return i
+    }
+  }
+  throw new Error('Missing closing brace')
+}
+
 export function parseColumnSpecifications(
   specification: string
 ): ColumnDefinition[] {
@@ -20,6 +38,8 @@ export function parseColumnSpecifications(
   let currentBorderLeft = 0
   let currentBorderRight = 0
   let currentContent = ''
+  let currentCellSpacingLeft = ''
+  let currentCellSpacingRight = ''
   function maybeCommit() {
     if (currentAlignment !== undefined) {
       columns.push({
@@ -27,11 +47,15 @@ export function parseColumnSpecifications(
         borderLeft: currentBorderLeft,
         borderRight: currentBorderRight,
         content: currentContent,
+        cellSpacingLeft: currentCellSpacingLeft,
+        cellSpacingRight: currentCellSpacingRight,
       })
       currentAlignment = undefined
       currentBorderLeft = 0
       currentBorderRight = 0
       currentContent = ''
+      currentCellSpacingLeft = ''
+      currentCellSpacingRight = ''
     }
   }
   for (let i = 0; i < specification.length; i++) {
@@ -65,12 +89,31 @@ export function parseColumnSpecifications(
         currentAlignment = 'paragraph'
         currentContent += 'p'
         // TODO: Parse these details
-        while (i < specification.length && specification.charAt(i) !== '}') {
-          i++
-          currentContent += specification.charAt(i)
+        const argumentEnd = parseArgument(specification, i + 1)
+        // Don't include the p twice
+        currentContent += specification.slice(i + 1, argumentEnd + 1)
+        i = argumentEnd
+        break
+      }
+      case '@':
+      case '!': {
+        const argumentEnd = parseArgument(specification, i + 1)
+        // Include the @/!
+        const argument = specification.slice(i, argumentEnd + 1)
+        i = argumentEnd
+        if (currentAlignment) {
+          // We have a cell, so this is right cell spacing
+          currentCellSpacingRight = argument
+        } else {
+          currentCellSpacingLeft = argument
         }
         break
       }
+      case ' ':
+      case '\n':
+      case '\t':
+        currentContent += char
+        break
     }
   }
   maybeCommit()
@@ -133,6 +176,7 @@ function parseTabularBody(
   node: SyntaxNode,
   state: EditorState
 ): ParsedTableBody {
+  const firstChild = node.firstChild
   const body: ParsedTableBody = {
     rows: [
       {
@@ -155,7 +199,7 @@ function parseTabularBody(
     return getLastRow().cells[getLastRow().cells.length - 1]
   }
   for (
-    let currentChild: SyntaxNode | null = node;
+    let currentChild: SyntaxNode | null = firstChild;
     currentChild;
     currentChild = currentChild.nextSibling
   ) {
@@ -256,7 +300,9 @@ function parseTabularBody(
       continue
     } else if (
       currentChild.type.is('NewLine') ||
-      currentChild.type.is('Whitespace')
+      currentChild.type.is('Whitespace') ||
+      currentChild.type.is('Comment') ||
+      currentChild.type.is('BlankLine')
     ) {
       const lastCell = getLastCell()
       if (!lastCell?.multiColumn) {
@@ -277,7 +323,6 @@ function parseTabularBody(
     } else if (isHLine(currentChild)) {
       const lastCell = getLastCell()
       if (lastCell?.content.trim()) {
-        console.error(lastCell)
         throw new Error('\\hline must be at the start of a row')
       }
       // push start of cell past the hline
@@ -306,26 +351,39 @@ function parseTabularBody(
     getLastRow().position.to = currentChild.to
   }
   const lastRow = getLastRow()
-  if (lastRow.cells.length === 1 && lastRow.cells[0].content.trim() === '') {
+  if (
+    body.rows.length > 1 &&
+    lastRow.cells.length === 1 &&
+    lastRow.cells[0].content.trim() === ''
+  ) {
     // Remove the last row if it's empty, but move hlines up to previous row
     const hlines = lastRow.hlines.map(hline => ({ ...hline, atBottom: true }))
     body.rows.pop()
     getLastRow().hlines.push(...hlines)
+    const lastLineContents = state.sliceDoc(
+      lastRow.position.from,
+      lastRow.position.to
+    )
+    const lastLineOffset =
+      lastLineContents.length - lastLineContents.trimEnd().length
+    getLastRow().position.to = lastRow.position.to - lastLineOffset
   }
   return body
 }
 
-export function generateTable(
-  node: SyntaxNode,
-  state: EditorState
-): {
+export type ParsedTableData = {
   table: TableData
   cellPositions: CellPosition[][]
   specification: { from: number; to: number }
   rowPositions: RowPosition[]
   rowSeparators: RowSeparator[]
   cellSeparators: CellSeparator[][]
-} {
+}
+
+export function generateTable(
+  node: SyntaxNode,
+  state: EditorState
+): ParsedTableData {
   const specification = node
     .getChild('BeginEnv')
     ?.getChild('TextArgument')
@@ -337,7 +395,7 @@ export function generateTable(
   const columns = parseColumnSpecifications(
     state.sliceDoc(specification.from, specification.to)
   )
-  const body = node.getChild('Content')?.getChild('TabularContent')?.firstChild
+  const body = node.getChild('Content')?.getChild('TabularContent')
   if (!body) {
     throw new Error('Missing table body')
   }

@@ -208,8 +208,7 @@ input.project-list-table-select-item[type='checkbox'] {
   }
 }
 .action-btn {
-  padding: 0 0.3em;
-  margin-left: 0.2em;
+  padding: 0 0.2em;
 }
 
 .first-project {
@@ -251,32 +250,6 @@ input.project-list-table-select-item[type='checkbox'] {
     &.centered-alert .alert {
       align-items: center;
     }
-  }
-}
-.notification-body {
-  flex-grow: 1;
-  width: 90%;
-  @media (min-width: @screen-sm-min) {
-    width: auto;
-  }
-}
-
-.notification-action {
-  margin-top: (@line-height-computed / 2); // match paragraph padding
-  order: 1;
-  @media (min-width: @screen-sm-min) {
-    margin-top: 0;
-    order: 0;
-    padding-left: @padding-sm;
-  }
-}
-
-.notification-close {
-  padding-left: @padding-sm;
-  text-align: right;
-  width: 10%;
-  @media (min-width: @screen-sm-min) {
-    width: auto;
   }
 }
 
@@ -490,6 +463,10 @@ ul.project-list {
 
 i.tablesort {
   padding-left: 8px;
+}
+
+.tablesort-text {
+  padding-right: 8px;
 }
 
 .tag-label {

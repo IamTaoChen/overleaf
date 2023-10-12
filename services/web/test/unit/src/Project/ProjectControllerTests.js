@@ -43,7 +43,7 @@ describe('ProjectController', function () {
       findArchivedProjects: sinon.stub(),
     }
     this.ProjectDuplicator = {
-      duplicate: sinon.stub().callsArgWith(3, null, { _id: this.project_id }),
+      duplicate: sinon.stub().callsArgWith(4, null, { _id: this.project_id }),
     }
     this.ProjectCreationHandler = {
       createExampleProject: sinon
@@ -60,7 +60,15 @@ describe('ProjectController', function () {
         .stub()
         .callsArgWith(1, null, false),
     }
-    this.TagsHandler = { getAllTags: sinon.stub() }
+    this.TagsHandler = {
+      getTagsForProject: sinon.stub().callsArgWith(2, null, [
+        {
+          name: 'test',
+          project_ids: [this.project_id],
+        },
+      ]),
+      addProjectToTags: sinon.stub(),
+    }
     this.UserModel = { findById: sinon.stub(), updateOne: sinon.stub() }
     this.AuthorizationManager = {
       getPrivilegeLevelForProject: sinon.stub(),
@@ -128,6 +136,7 @@ describe('ProjectController', function () {
         getAssignment: sinon.stub().resolves({ variant: 'default' }),
       },
       getAssignment: sinon.stub().yields(null, { variant: 'default' }),
+      sessionMaintenance: sinon.stub().yields(),
     }
     this.InstitutionsFeatures = {
       hasLicence: sinon.stub().callsArgWith(1, null, false),
@@ -305,10 +314,16 @@ describe('ProjectController', function () {
       }
       this.res.sendStatus = code => {
         this.ProjectAuditLogHandler.addEntry
-          .calledWith(this.project_id, 'toggle-access-level', this.user._id, {
-            publicAccessLevel: 'readOnly',
-            status: 'OK',
-          })
+          .calledWith(
+            this.project_id,
+            'toggle-access-level',
+            this.user._id,
+            this.req.ip,
+            {
+              publicAccessLevel: 'readOnly',
+              status: 'OK',
+            }
+          )
           .should.equal(true)
         done()
       }
@@ -513,6 +528,28 @@ describe('ProjectController', function () {
         return done()
       }
       return this.ProjectController.loadEditor(this.req, this.res)
+    })
+
+    it('should invoke the session maintenance for logged in user', function (done) {
+      this.res.render = () => {
+        this.SplitTestHandler.sessionMaintenance.should.have.been.calledWith(
+          this.req,
+          this.user
+        )
+        done()
+      }
+      this.ProjectController.loadEditor(this.req, this.res)
+    })
+
+    it('should invoke the session maintenance for anonymous user', function (done) {
+      this.SessionManager.getLoggedInUserId.returns(null)
+      this.res.render = () => {
+        this.SplitTestHandler.sessionMaintenance.should.have.been.calledWith(
+          this.req
+        )
+        done()
+      }
+      this.ProjectController.loadEditor(this.req, this.res)
     })
 
     it('should render the closed page if the editor is closed', function (done) {

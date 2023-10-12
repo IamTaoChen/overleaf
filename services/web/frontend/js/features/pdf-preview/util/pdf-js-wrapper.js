@@ -1,5 +1,6 @@
 import { captureException } from '../../../infrastructure/error-reporter'
 import { generatePdfCachingTransportFactory } from './pdf-caching-transport'
+import { debugConsole } from '@/utils/debugging'
 
 const params = new URLSearchParams(window.location.search)
 const disableFontFace = params.get('disable-font-face') === 'true'
@@ -112,7 +113,7 @@ export default class PDFJSWrapper {
           resolve(doc)
 
           if (previousDoc) {
-            previousDoc.cleanup().catch(console.error)
+            previousDoc.cleanup().catch(debugConsole.error)
             previousDoc.destroy()
           }
         })
@@ -139,17 +140,24 @@ export default class PDFJSWrapper {
       return
     }
 
-    const currentScaleValue = this.viewer.currentScaleValue
+    // Use requestAnimationFrame to prevent errors like "ResizeObserver loop
+    // completed with undelivered notifications" that can occur if updating the
+    // viewer causes another repaint. The cost of this is that the viewer update
+    // lags one frame behind, but it's unlikely to matter.
+    // Further reading: https://github.com/WICG/resize-observer/issues/38
+    window.requestAnimationFrame(() => {
+      const currentScaleValue = this.viewer.currentScaleValue
 
-    if (
-      currentScaleValue === 'auto' ||
-      currentScaleValue === 'page-fit' ||
-      currentScaleValue === 'page-width'
-    ) {
-      this.viewer.currentScaleValue = currentScaleValue
-    }
+      if (
+        currentScaleValue === 'auto' ||
+        currentScaleValue === 'page-fit' ||
+        currentScaleValue === 'page-width'
+      ) {
+        this.viewer.currentScaleValue = currentScaleValue
+      }
 
-    this.viewer.update()
+      this.viewer.update()
+    })
   }
 
   // get the page and offset of a click event

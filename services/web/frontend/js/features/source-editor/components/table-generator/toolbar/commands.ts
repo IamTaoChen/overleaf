@@ -13,6 +13,7 @@ import {
   extendBackwardsOverEmptyLines,
   extendForwardsOverEmptyLines,
 } from '../../../extensions/visual/selection'
+import { debugConsole } from '@/utils/debugging'
 
 /* eslint-disable no-unused-vars */
 export enum BorderTheme {
@@ -71,7 +72,9 @@ export const setBorders = (
       ],
     })
   } else if (theme === BorderTheme.FULLY_BORDERED) {
-    const newSpec = addColumnBordersToSpecification(specification)
+    const newSpec = generateColumnSpecification(
+      addColumnBordersToSpecification(table.columns)
+    )
 
     const insertColumns = view.state.changes({
       from: positions.columnDeclarations.from,
@@ -110,14 +113,14 @@ export const setBorders = (
     for (const row of table.rows) {
       for (const cell of row.cells) {
         if (cell.multiColumn) {
-          const specification = view.state.sliceDoc(
-            cell.multiColumn.columns.from,
-            cell.multiColumn.columns.to
-          )
           addMulticolumnBorders.push({
             from: cell.multiColumn.columns.from,
             to: cell.multiColumn.columns.to,
-            insert: addColumnBordersToSpecification(specification),
+            insert: generateColumnSpecification(
+              addColumnBordersToSpecification(
+                cell.multiColumn.columns.specification
+              )
+            ),
           })
         }
       }
@@ -129,24 +132,13 @@ export const setBorders = (
   }
 }
 
-const addColumnBordersToSpecification = (specification: string) => {
-  let newSpec = '|'
-  let consumingBrackets = 0
-  for (const char of specification) {
-    if (char === '{') {
-      consumingBrackets++
-    }
-    if (char === '}' && consumingBrackets > 0) {
-      consumingBrackets--
-    }
-    if (consumingBrackets) {
-      newSpec += char
-    }
-    if (char === '|') {
-      continue
-    }
-    newSpec += char + '|'
-  }
+const addColumnBordersToSpecification = (specification: ColumnDefinition[]) => {
+  const newSpec = specification.map(column => ({
+    ...column,
+    borderLeft: 1,
+    borderRight: 0,
+  }))
+  newSpec[newSpec.length - 1].borderRight = 1
   return newSpec
 }
 
@@ -216,8 +208,18 @@ export const setAlignment = (
 const generateColumnSpecification = (columns: ColumnDefinition[]) => {
   return columns
     .map(
-      ({ borderLeft, borderRight, content }) =>
-        `${'|'.repeat(borderLeft)}${content}${'|'.repeat(borderRight)}`
+      ({
+        borderLeft,
+        borderRight,
+        content,
+        cellSpacingLeft,
+        cellSpacingRight,
+      }) =>
+        `${'|'.repeat(
+          borderLeft
+        )}${cellSpacingLeft}${content}${cellSpacingRight}${'|'.repeat(
+          borderRight
+        )}`
     )
     .join('')
 }
@@ -235,6 +237,7 @@ export const removeRowOrColumns = (
     minY: startRow,
     maxY: endRow,
   } = selection.normalized()
+  const borderTheme = table.getBorderTheme()
   const changes: { from: number; to: number; insert: string }[] = []
   const specification = view.state.sliceDoc(
     positions.columnDeclarations.from,
@@ -253,13 +256,22 @@ export const removeRowOrColumns = (
   const removedColumns =
     Number(selection.isColumnSelected(startCell, table)) * selection.width()
 
+  const removingFromBeginning = selection.isColumnSelected(0, table)
+
   for (let row = startRow; row <= endRow; row++) {
     if (selection.isRowSelected(row, table)) {
       const rowPosition = positions.rowPositions[row]
+      let insert = ''
+      if (
+        row === numberOfRows - 1 &&
+        borderTheme === BorderTheme.FULLY_BORDERED
+      ) {
+        insert = '\\hline'
+      }
       changes.push({
         from: rowPosition.from,
         to: rowPosition.to,
-        insert: '',
+        insert,
       })
     } else {
       for (let cell = startCell; cell <= endCell; ) {
@@ -267,19 +279,29 @@ export const removeRowOrColumns = (
         const cellPosition = positions.cells[row][cellIndex]
         if (selection.isColumnSelected(cell, table)) {
           // We should remove this column.
-          const boundaries = table.getCellBoundaries(row, cell)
-          if (boundaries.from === 0 && cellSeparators[row].length > 0) {
-            // Remove the cell separator between the first and second cell
+          if (removingFromBeginning) {
+            // Deletes content in { }
+            // [ cell x - 1 ] & { [ cell x ] & } [ cell x + 1 ]
+            const from = cellPosition.from
+            const to = cellSeparators[row][cellIndex].to
+            if (from === undefined || to === undefined) {
+              debugConsole.error('Failed to remove column')
+              return selection
+            }
             changes.push({
-              from: positions.cells[row][cell].from,
-              to: cellSeparators[row][0].to,
+              from,
+              to,
               insert: '',
             })
           } else {
-            // Remove the cell separator between the cell before and this if possible
-            const from =
-              cellSeparators[row][cellIndex - 1]?.from ?? cellPosition.from
+            // Deletes content in { }
+            // [ cell x - 1 ] { &  [ cell x ] } & [ cell x + 1 ]
+            const from = cellSeparators[row][cellIndex - 1].from
             const to = cellPosition.to
+            if (from === undefined || to === undefined) {
+              debugConsole.error('Failed to remove column')
+              return selection
+            }
             changes.push({
               from,
               to,
@@ -294,6 +316,13 @@ export const removeRowOrColumns = (
   const filteredColumns = columnSpecification.filter(
     (_, i) => !selection.isColumnSelected(i, table)
   )
+  if (
+    table.getBorderTheme() === BorderTheme.FULLY_BORDERED &&
+    columnSpecification[0]?.borderLeft > 0 &&
+    filteredColumns.length
+  ) {
+    filteredColumns[0].borderLeft = Math.max(1, filteredColumns[0].borderLeft)
+  }
   const newSpecification = generateColumnSpecification(filteredColumns)
   changes.push({
     from: positions.columnDeclarations.from,
@@ -340,6 +369,7 @@ export const insertRow = (
   selection: TableSelection,
   positions: Positions,
   below: boolean,
+  rowSeparators: RowSeparator[],
   table: TableData
 ) => {
   const { maxY, minY } = selection.normalized()
@@ -350,11 +380,13 @@ export const insertRow = (
   const numberOfColumns = table.columns.length
   const borderTheme = table.getBorderTheme()
   const border = borderTheme === BorderTheme.FULLY_BORDERED ? '\\hline' : ''
+  const initialRowSeparator =
+    below && rowSeparators.length === table.rows.length - 1 ? '\\\\' : ''
   const initialHline =
     borderTheme === BorderTheme.FULLY_BORDERED && !below && minY === 0
       ? '\\hline'
       : ''
-  const insert = `${initialHline}\n${' &'.repeat(
+  const insert = `${initialRowSeparator}${initialHline}\n${' &'.repeat(
     numberOfColumns - 1
   )}\\\\${border}`.repeat(rowsToInsert)
   view.dispatch({ changes: { from, to: from, insert } })
@@ -405,6 +437,8 @@ export const insertColumn = (
       borderLeft: 0,
       borderRight,
       content: 'l',
+      cellSpacingLeft: '',
+      cellSpacingRight: '',
     }))
   )
   if (targetIndex === 0 && borderTheme === BorderTheme.FULLY_BORDERED) {
@@ -599,7 +633,7 @@ export const mergeCells = (
   }
   const cellContent = []
   for (let i = minX; i <= maxX; i++) {
-    cellContent.push(table.getCell(minY, i).content)
+    cellContent.push(table.getCell(minY, i).content.trim())
   }
   const content = cellContent.join(' ').trim()
   const border =

@@ -7,7 +7,7 @@ import {
 import { EditorView } from '@codemirror/view'
 import { addEffectListener, removeEffectListener } from './effect-listeners'
 import { setMetadataEffect } from './language'
-import getMeta from '../../../utils/meta'
+import { debugConsole } from '@/utils/debugging'
 
 type NestedReadonly<T> = {
   readonly [P in keyof T]: NestedReadonly<T[P]>
@@ -136,7 +136,7 @@ export function waitForFileTreeUpdate(view: EditorView) {
   const abortController = new AbortController()
   const promise = new Promise<void>(resolve => {
     const abort = () => {
-      console.warn('Aborting wait for file tree update')
+      debugConsole.warn('Aborting wait for file tree update')
       removeEffectListener(view, setMetadataEffect, listener)
       resolve()
     }
@@ -173,11 +173,6 @@ export type PastedImageData = {
 }
 
 export const figureModalPasteHandler = (): Extension => {
-  const splitTestVariants = getMeta('ol-splitTestVariants', {})
-  const figureModalEnabled = splitTestVariants['figure-modal'] === 'enabled'
-  if (!figureModalEnabled) {
-    return []
-  }
   return EditorView.domEventHandlers({
     drop: evt => {
       if (!evt.dataTransfer || evt.dataTransfer.files.length === 0) {
@@ -200,6 +195,9 @@ export const figureModalPasteHandler = (): Extension => {
     paste: evt => {
       if (!evt.clipboardData || evt.clipboardData.files.length === 0) {
         return
+      }
+      if (evt.clipboardData.types.includes('text/plain')) {
+        return // allow pasted text to be handled even if there's also a file on the clipboard
       }
       const file = evt.clipboardData.files[0]
       if (!ALLOWED_MIME_TYPES.has(file.type)) {

@@ -8,14 +8,12 @@ import { Button } from 'react-bootstrap'
 type CompareProps = {
   comparisonRange: UpdateRange
   icon?: ReactNode
-  text?: string
   toolTipDescription?: string
   closeDropdown: () => void
 }
 
 function Compare({
   comparisonRange,
-  text,
   closeDropdown,
   toolTipDescription,
   icon = <Icon type="exchange" fw />,
@@ -42,13 +40,12 @@ function Compare({
       overlayProps={{ placement: 'left' }}
     >
       <Button
-        bsStyle="link"
+        bsStyle={null}
         className="history-compare-btn"
         onClick={handleCompareVersion}
       >
         <span className="sr-only">{toolTipDescription}</span>
         {icon}
-        {text ?? <span className="px-1">{text}</span>}
       </Button>
     </Tooltip>
   )

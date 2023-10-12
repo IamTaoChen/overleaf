@@ -29,7 +29,7 @@ block content
 								p
 									strong #{translate("back_to_school_banner_bargain_with_x_percent_off_in_school_or_not", {x: '15'})}
 									br
-									| #{translate("back_to_school_banner_hurry_offer_ends_sep_30")}
+									| #{translate("back_to_school_banner_extended_offer_oct_15")}
 							.notification-action
 								a.btn.btn-sm.btn-default-outline(
 									href="/about/back-to-school-promo-2023"
@@ -68,6 +68,13 @@ block content
 
 					//- sticky header on mobile will be "hidden" (by removing its sticky position) if it reaches this div
 					.invisible(aria-hidden="true" data-ol-plans-v2-table-sticky-header-stop)
+
+					.row.row-spaced-large.text-centered
+						.col-xs-12
+							p.text-centered
+								strong *
+								| &nbsp;
+								| !{translate("the_free_compile_timeout_will_be_changing_soon_with_faster_servers", {}, [{name: 'a', attrs: {href: '/blog/changes-to-free-compile-timeouts-and-servers', rel: 'noopener noreferrer', target: '_blank'}}])}
 
 		if (showSkipLink)
 			.row.row-spaced-small.text-center

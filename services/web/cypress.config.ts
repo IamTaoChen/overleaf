@@ -6,7 +6,6 @@ export default defineConfig({
   video: !!process.env.CI,
   screenshotsFolder: 'cypress/results',
   videosFolder: 'cypress/results',
-  videoUploadOnPasses: false,
   viewportHeight: 800,
   viewportWidth: 800,
   component: {
@@ -20,7 +19,7 @@ export default defineConfig({
     },
     specPattern:
       process.env.CYPRESS_SPEC_PATTERN ||
-      './{test,modules/**/test}/frontend/**/*.spec.{js,ts,tsx}',
+      './{test,modules/**/test}/frontend/**/*.spec.{js,jsx,ts,tsx}',
     excludeSpecPattern: process.env.CYPRESS_EXCLUDE_SPEC_PATTERN,
   },
   retries: {

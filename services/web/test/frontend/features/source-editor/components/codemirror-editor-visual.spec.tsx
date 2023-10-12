@@ -467,14 +467,11 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
       'title with <span class="ol-cm-command-texttt"><b>command</b></span>'
     )
 
-    // unsupported commands
     cy.get('@second-line').type(deleteLine)
     cy.get('@second-line').type('\\title{{}Title with \\& ampersands}')
-    cy.get('.ol-cm-title').should(
-      'contain.html',
-      'Title with \\&amp; ampersands'
-    )
+    cy.get('.ol-cm-title').should('contain.html', 'Title with &amp; ampersands')
 
+    // unsupported command
     cy.get('@second-line').type(deleteLine)
     cy.get('@second-line').type('\\title{{}My \\LaTeX{{}} document}')
     cy.get('.ol-cm-title').should('contain.html', 'My \\LaTeX{} document')
@@ -508,6 +505,25 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
       .should('contain', '\\title{Document title}')
     cy.get('.ol-cm-preamble-line').eq(2).should('contain', '\\begin{document}')
     cy.get('.ol-cm-preamble-line').eq(3).should('not.exist')
+  })
+
+  it('should exclude maketitle from preamble extents if nested in another environment', function () {
+    cy.get('@first-line').type(
+      [
+        '\\author{{}Author}',
+        '\\title{{}Document title}',
+        '\\begin{{}document}',
+        '\\begin{{}frame}{{}Foo}',
+        '\\maketitle',
+        '\\end{{}frame}',
+        '\\end{{}document}',
+        '',
+      ].join('{Enter}')
+    )
+    cy.get('.ol-cm-preamble-widget').should('have.length', 1)
+    cy.get('.ol-cm-preamble-widget').click()
+
+    cy.get('.ol-cm-preamble-line').should('have.length', 3)
   })
 
   it('should show multiple authors', function () {
@@ -605,6 +621,12 @@ describe('<CodeMirrorEditor/> in Visual mode', function () {
     it('decorates a backslash-prefixed tilde with a tilde', function () {
       cy.get('@first-line').type('Test\\~test')
       cy.get('@first-line').should('have.text', 'Test~test')
+    })
+
+    it('decorates a backslash-prefixed dollar sign with a dollar sign', function () {
+      cy.get('@first-line').type('\\$5.00')
+      cy.get('@first-line').should('have.text', '$5.00')
+      cy.get('.ol-cm-character').should('have.length', 1)
     })
 
     it('decorates line breaks', function () {

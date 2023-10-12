@@ -14,8 +14,7 @@ describe('<EditorLeftMenu />', function () {
     cy.interceptCompile()
   })
 
-  // eslint-disable-next-line mocha/no-skipped-tests
-  describe.skip('for non-anonymous users', function () {
+  describe('for non-anonymous users', function () {
     const overallThemes: OverallThemeMeta[] = [
       {
         name: 'Overall Theme 1',
@@ -179,7 +178,7 @@ describe('<EditorLeftMenu />', function () {
             mathDisplay: 1,
             errors: 0,
           },
-        })
+        }).as('wordCount')
 
         const scope = mockScope({
           ui: {
@@ -194,6 +193,8 @@ describe('<EditorLeftMenu />', function () {
         )
 
         cy.findByRole('button', { name: 'Word Count' }).click()
+
+        cy.wait('@wordCount')
         cy.findByText('Total Words:')
         cy.findByText('781')
         cy.findByText('Headers:')
@@ -243,6 +244,14 @@ describe('<EditorLeftMenu />', function () {
           ui: {
             leftMenuShown: true,
           },
+          project: {
+            owner: {
+              _id: '123',
+            },
+            features: {
+              gitBridge: true,
+            },
+          },
         })
 
         cy.mount(
@@ -256,15 +265,40 @@ describe('<EditorLeftMenu />', function () {
         cy.findByText(/your project using the link displayed below/)
       })
 
+      it('shows git modal paywall correctly', function () {
+        const scope = mockScope({
+          ui: {
+            leftMenuShown: true,
+          },
+          project: {
+            owner: {
+              _id: '123',
+            },
+            features: {
+              gitBridge: false,
+            },
+          },
+        })
+
+        cy.mount(
+          <EditorProviders scope={scope}>
+            <EditorLeftMenu />
+          </EditorProviders>
+        )
+
+        cy.findByRole('button', { name: 'Git' }).click()
+        cy.findByText('Collaborate online and offline, using your own workflow')
+      })
+
       it('shows github modal correctly', function () {
         cy.intercept('GET', '/user/github-sync/status', {
           available: false,
           enabled: false,
-        })
+        }).as('user-status')
 
         cy.intercept('GET', '/project/*/github-sync/status', {
           enabled: false,
-        })
+        }).as('project-status')
 
         const scope = mockScope({
           ui: {
@@ -278,8 +312,11 @@ describe('<EditorLeftMenu />', function () {
           </EditorProviders>
         )
 
+        cy.wait('@compile')
         cy.findByRole('button', { name: 'GitHub' }).click()
         cy.findByText('GitHub Sync')
+
+        cy.wait(['@user-status', '@project-status'])
         cy.findByText('Push to GitHub, pull to Overleaf')
       })
     })
@@ -562,9 +599,9 @@ describe('<EditorLeftMenu />', function () {
               'editortheme-2',
               'editortheme-3',
               '—————————————————',
-              'legacytheme-1',
-              'legacytheme-2',
-              'legacytheme-3',
+              'legacytheme-1 (Legacy)',
+              'legacytheme-2 (Legacy)',
+              'legacytheme-3 (Legacy)',
             ])
           }
         )

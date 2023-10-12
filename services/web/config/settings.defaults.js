@@ -44,7 +44,6 @@ const defaultTextExtensions = [
   'rtex',
   'md',
   'asy',
-  'latexmkrc',
   'lbx',
   'bbx',
   'cbx',
@@ -62,6 +61,8 @@ const defaultTextExtensions = [
   'mf',
   'yml',
   'yaml',
+  'lhs',
+  'mk',
 ]
 
 const parseTextExtensions = function (extensions) {
@@ -347,6 +348,7 @@ module.exports = {
   ],
 
   enableSubscriptions: false,
+  restrictedCountries: [],
 
   enabledLinkedFileTypes: (process.env.ENABLED_LINKED_FILE_TYPES || '').split(
     ','
@@ -675,6 +677,9 @@ module.exports = {
     parseTextExtensions(process.env.ADDITIONAL_TEXT_EXTENSIONS)
   ),
 
+  // case-insensitive file names that is editable (doc) in the editor
+  editableFilenames: ['latexmkrc', '.latexmkrc', 'makefile', 'gnumakefile'],
+
   fileIgnorePattern:
     process.env.FILE_IGNORE_PATTERN ||
     '**/{{__MACOSX,.git,.texpadtmp,.R}{,/**},.!(latexmkrc),*.{dvi,aux,log,toc,out,pdfsync,synctex,synctex(busy),fdb_latexmk,fls,nlo,ind,glo,gls,glg,bbl,blg,doc,docx,gz,swp}}',
@@ -812,7 +817,12 @@ module.exports = {
     managedGroupEnrollmentInvite: [],
   },
 
-  moduleImportSequence: ['launchpad', 'server-ce-scripts', 'user-activate'],
+  moduleImportSequence: [
+    'history-v1',
+    'launchpad',
+    'server-ce-scripts',
+    'user-activate',
+  ],
 
   csp: {
     enabled: process.env.CSP_ENABLED === 'true',

@@ -1,3 +1,4 @@
+import { useCallback, memo } from 'react'
 import HistoryVersionDetails from './history-version-details'
 import TagTooltip from './tag-tooltip'
 import Changes from './changes'
@@ -13,7 +14,6 @@ import {
   ItemSelectionState,
 } from '../../utils/history-details'
 import { ActiveDropdown } from '../../hooks/use-dropdown-active-item'
-import { memo, useCallback } from 'react'
 import { HistoryContextValue } from '../../context/types/history-context-value'
 import VersionDropdownContent from './dropdown/version-dropdown-content'
 import CompareItems from './dropdown/menu-item/compare-items'
@@ -27,7 +27,7 @@ type HistoryVersionProps = {
   selectable: boolean
   faded: boolean
   showDivider: boolean
-  selected: ItemSelectionState
+  selectionState: ItemSelectionState
   setSelection: HistoryContextValue['setSelection']
   dropdownOpen: boolean
   dropdownActive: boolean
@@ -44,7 +44,7 @@ function HistoryVersion({
   selectable,
   faded,
   showDivider,
-  selected,
+  selectionState,
   setSelection,
   dropdownOpen,
   dropdownActive,
@@ -54,13 +54,11 @@ function HistoryVersion({
   closeDropdownForItem,
 }: HistoryVersionProps) {
   const orderedLabels = orderBy(update.labels, ['created_at'], ['desc'])
-
   const closeDropdown = useCallback(() => {
     closeDropdownForItem(update, 'moreOptions')
   }, [closeDropdownForItem, update])
 
   const updateRange = updateRangeForUpdate(update)
-
   return (
     <>
       {showDivider ? (
@@ -68,7 +66,8 @@ function HistoryVersion({
           className={classNames({
             'history-version-divider-container': true,
             'version-element-within-selected ':
-              selected === 'withinSelected' || selected === 'selectedEdge',
+              selectionState === 'withinSelected' ||
+              selectionState === 'lowerSelected',
           })}
         >
           <hr className="history-version-divider" />
@@ -78,7 +77,8 @@ function HistoryVersion({
         <div
           className={classNames({
             'version-element-within-selected ':
-              selected === 'withinSelected' || selected === 'selectedEdge',
+              selectionState === 'withinSelected' ||
+              selectionState === 'lowerSelected',
           })}
         >
           <time className="history-version-day">
@@ -93,7 +93,7 @@ function HistoryVersion({
         })}
       >
         <HistoryVersionDetails
-          selected={selected}
+          selectionState={selectionState}
           setSelection={setSelection}
           updateRange={updateRangeForUpdate(update)}
           selectable={selectable}
@@ -120,12 +120,12 @@ function HistoryVersion({
             </HistoryDropdown>
           )}
 
-          {selected !== 'selected' ? (
+          {selectionState !== 'selected' && !faded ? (
             <div data-testid="compare-icon-version" className="pull-right">
-              {selected !== 'withinSelected' ? (
+              {selectionState !== 'withinSelected' ? (
                 <CompareItems
                   updateRange={updateRange}
-                  selected={selected}
+                  selectionState={selectionState}
                   closeDropdown={closeDropdown}
                 />
               ) : (

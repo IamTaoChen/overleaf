@@ -1,3 +1,5 @@
+import { debugConsole } from '@/utils/debugging'
+
 export function waitFor<T>(
   testFunction: () => T,
   timeout: number,
@@ -9,11 +11,11 @@ export function waitFor<T>(
   return new Promise<T>((resolve, reject) => {
     const tryIteration = () => {
       if (iterations > iterationLimit) {
-        reject(
-          console.error(
-            `waiting too long, ${JSON.stringify({ timeout, pollInterval })}`
-          )
+        const err = new Error(
+          `waiting too long, ${JSON.stringify({ timeout, pollInterval })}`
         )
+        debugConsole.error(err)
+        reject(err)
         return
       }
 

@@ -1,13 +1,13 @@
 - var featuresPageVariant = splitTestVariants && splitTestVariants['features-page']
 
 footer.fat-footer.hidden-print
-	.fat-footer-container
+	.fat-footer-container(role="navigation" aria-label=translate('footer_navigation'))
 		.fat-footer-sections(class=hideFatFooter ? 'hidden' : undefined)
 			.footer-section#footer-brand
 				a(href='/', aria-label=settings.appName).footer-brand
 					
 			.footer-section
-				.footer-section-heading #{translate('About')}
+				h2.footer-section-heading #{translate('About')}
 					
 				ul.list-unstyled
 					li
@@ -22,7 +22,7 @@ footer.fat-footer.hidden-print
 						a(href="/blog") #{translate('blog')}
 						
 			.footer-section
-				.footer-section-heading #{translate('learn')}
+				h2.footer-section-heading #{translate('learn')}
 		
 				ul.list-unstyled
 					li
@@ -39,7 +39,7 @@ footer.fat-footer.hidden-print
 						a(href="/learn/latex/Tables") #{translate('how_to_create_tables')}
 						
 			.footer-section
-				.footer-section-heading !{translate('footer_plans_and_pricing')}
+				h2.footer-section-heading !{translate('footer_plans_and_pricing')}
 		
 				ul.list-unstyled
 					li
@@ -57,13 +57,13 @@ footer.fat-footer.hidden-print
 						a(href="/user/subscription/plans?itm_referrer=footer-for-students#view=student") #{translate('for_students')}
 						
 			.footer-section
-				.footer-section-heading #{translate('get_involved')}
+				h2.footer-section-heading #{translate('get_involved')}
 		
 				ul.list-unstyled
 					li
 						a(href="/for/community/advisors") #{translate('become_an_advisor')}
 					li
-						a(href="https://calendly.com/overleaf/user-research") #{translate('participate_in_user_research')}
+						a(href="https://forms.gle/67PSpN1bLnjGCmPQ9") #{translate('let_us_know_what_you_think')}
 					if user
 						li
 							a(href="/beta/participate") #{translate('join_beta_program')}
@@ -71,7 +71,7 @@ footer.fat-footer.hidden-print
 							a(href="/user/bonus") #{translate('refer_a_friend')}
 		
 			.footer-section
-				.footer-section-heading #{translate('help')}
+				h2.footer-section-heading #{translate('help')}
 		
 				ul.list-unstyled
 					li

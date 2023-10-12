@@ -4,6 +4,7 @@ const { GroupPolicy } = require('../../models/GroupPolicy')
 const { User } = require('../../models/User')
 const ManagedUsersPolicy = require('./ManagedUsersPolicy')
 const OError = require('@overleaf/o-error')
+const settings = require('@overleaf/settings')
 const {
   UserNotFoundError,
   SubscriptionNotFoundError,
@@ -116,10 +117,13 @@ async function getEnrollmentForUser(requestedUser) {
 
 async function enrollInSubscription(userId, subscription) {
   // check whether the user is already enrolled in a subscription
-  const user = await User.findOne({
-    _id: userId,
-    'enrollment.managedBy': { $exists: true },
-  }).exec()
+  const user = await User.findOne(
+    {
+      _id: userId,
+      'enrollment.managedBy': { $exists: true },
+    },
+    { _id: 1 }
+  ).exec()
   if (user != null) {
     throw new OError('User is already enrolled in a subscription', {
       userId,
@@ -173,6 +177,7 @@ async function _sendEmailToGroupMembers(subscriptionId) {
         to: recipient.email,
         admin: subscription.admin_id,
         groupName: subscription.teamName,
+        acceptInviteUrl: `${settings.siteUrl}/subscription/${subscriptionId}/enrollment/`,
       }
       EmailHandler.sendDeferredEmail(
         'surrenderAccountForManagedUsers',

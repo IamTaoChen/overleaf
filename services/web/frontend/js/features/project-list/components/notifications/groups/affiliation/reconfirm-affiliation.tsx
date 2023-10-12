@@ -4,11 +4,15 @@ import { Button } from 'react-bootstrap'
 import Icon from '../../../../../../shared/components/icon'
 import getMeta from '../../../../../../utils/meta'
 import useAsync from '../../../../../../shared/hooks/use-async'
-import { postJSON } from '../../../../../../infrastructure/fetch-json'
+import {
+  FetchError,
+  postJSON,
+} from '../../../../../../infrastructure/fetch-json'
 import { UserEmailData } from '../../../../../../../../types/user-email'
 import { ExposedSettings } from '../../../../../../../../types/exposed-settings'
 import { Institution } from '../../../../../../../../types/institution'
 import { useLocation } from '../../../../../../shared/hooks/use-location'
+import { debugConsole } from '@/utils/debugging'
 
 type ReconfirmAffiliationProps = {
   email: UserEmailData['email']
@@ -21,7 +25,7 @@ function ReconfirmAffiliation({
 }: ReconfirmAffiliationProps) {
   const { t } = useTranslation()
   const { samlInitPath } = getMeta('ol-ExposedSettings') as ExposedSettings
-  const { isLoading, isError, isSuccess, runAsync } = useAsync()
+  const { error, isLoading, isError, isSuccess, runAsync } = useAsync()
   const [hasSent, setHasSent] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const ssoEnabled = institution.ssoEnabled
@@ -44,9 +48,12 @@ function ReconfirmAffiliation({
         postJSON('/user/emails/send-reconfirmation', {
           body: { email },
         })
-      ).catch(console.error)
+      ).catch(debugConsole.error)
     }
   }
+
+  const rateLimited =
+    error && error instanceof FetchError && error.response?.status === 429
 
   if (hasSent) {
     return (
@@ -73,7 +80,11 @@ function ReconfirmAffiliation({
         {isError && (
           <>
             <br />
-            <div>{t('generic_something_went_wrong')}</div>
+            <div>
+              {rateLimited
+                ? t('too_many_requests')
+                : t('generic_something_went_wrong')}
+            </div>
           </>
         )}
       </div>
@@ -116,7 +127,11 @@ function ReconfirmAffiliation({
       {isError && (
         <>
           <br />
-          <div>{t('generic_something_went_wrong')}</div>
+          <div>
+            {rateLimited
+              ? t('too_many_requests')
+              : t('generic_something_went_wrong')}
+          </div>
         </>
       )}
     </div>

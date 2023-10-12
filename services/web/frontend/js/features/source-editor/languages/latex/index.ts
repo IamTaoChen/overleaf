@@ -16,7 +16,10 @@ import importOverleafModules from '../../../../../macros/import-overleaf-module.
 import { documentOutline } from './document-outline'
 import { LaTeXLanguage } from './latex-language'
 import { documentEnvironmentNames } from './document-environment-names'
-import { figureModal } from '../../extensions/figure-modal'
+import {
+  figureModal,
+  figureModalPasteHandler,
+} from '../../extensions/figure-modal'
 
 const completionSources: CompletionSource[] = [
   ...argumentCompletionSources,
@@ -31,9 +34,9 @@ const completionSources: CompletionSource[] = [
 export const latex = () => {
   return new LanguageSupport(LaTeXLanguage, [
     shortcuts(),
-    documentOutline.extension,
-    documentCommands.extension,
-    documentEnvironmentNames.extension,
+    documentOutline,
+    documentCommands,
+    documentEnvironmentNames,
     latexIndentService(),
     linting(),
     metadata(),
@@ -44,5 +47,6 @@ export const latex = () => {
       })
     ),
     figureModal(),
+    figureModalPasteHandler(),
   ])
 }

@@ -31,12 +31,8 @@ import './ide/review-panel/ReviewPanelManager'
 import OutlineManager from './features/outline/outline-manager'
 import SafariScrollPatcher from './ide/SafariScrollPatcher'
 import './ide/cobranding/CobrandingDataService'
-import './ide/settings/index'
 import './ide/chat/index'
-import './ide/clone/index'
 import './ide/file-view/index'
-import './ide/hotkeys/index'
-import './ide/wordcount/index'
 import './ide/toolbar/index'
 import './ide/directives/layout'
 import './ide/directives/validFile'
@@ -57,7 +53,7 @@ import './filters/formatDate'
 import './main/event'
 import './main/account-upgrade-angular'
 import './main/system-messages'
-import '../../modules/modules-ide.js'
+import '../../modules/modules-ide'
 import './features/source-editor/ide'
 import './shared/context/controllers/root-context-controller'
 import './features/editor-navigation-toolbar/controllers/editor-navigation-toolbar-controller'
@@ -66,12 +62,13 @@ import './features/share-project-modal/controllers/react-share-project-modal-con
 import './features/source-editor/controllers/editor-switch-controller'
 import './features/source-editor/controllers/cm6-switch-away-survey-controller'
 import './features/source-editor/controllers/legacy-editor-warning-controller'
-import './features/outline/controllers/documentation-button-controller'
 import './features/history/controllers/history-controller'
 import './features/history/controllers/history-file-tree-controller'
+import './features/editor-left-menu/controllers/editor-left-menu-controller'
 import { cleanupServiceWorker } from './utils/service-worker-cleanup'
 import { reportCM6Perf } from './infrastructure/cm6-performance'
 import { reportAcePerf } from './ide/editor/ace-performance'
+import { debugConsole } from '@/utils/debugging'
 
 App.controller(
   'IdeController',
@@ -428,7 +425,7 @@ If the project has been renamed please look in your project list for a new proje
         !/.*Chromium\/.*/.test(userAgent)
     } catch (error) {
       err = error
-      console.error(err)
+      debugConsole.error(err)
     }
 
     if (ide.browserIsSafari) {
@@ -449,7 +446,7 @@ If the project has been renamed please look in your project list for a new proje
       }
     } catch (error1) {
       err = error1
-      console.error(err)
+      debugConsole.error(err)
     }
 
     // User can append ?ft=somefeature to url to activate a feature toggle

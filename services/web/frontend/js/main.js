@@ -9,7 +9,6 @@
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
 import './main/token-access'
-import './main/project-list/index'
 import './main/clear-sessions'
 import './main/account-upgrade-angular'
 import './main/plans'
@@ -39,8 +38,9 @@ import './services/validateCaptcha'
 import './services/validateCaptchaV3'
 import './filters/formatDate'
 import './features/cookie-banner'
-import '../../modules/modules-main.js'
+import '../../modules/modules-main'
 import './cdn-load-test'
+import { debugConsole } from '@/utils/debugging'
 angular.module('SharelatexApp').config(function ($locationProvider) {
   try {
     return $locationProvider.html5Mode({
@@ -49,7 +49,7 @@ angular.module('SharelatexApp').config(function ($locationProvider) {
       rewriteLinks: false,
     })
   } catch (e) {
-    return console.error("Error while trying to fix '#' links: ", e)
+    debugConsole.error("Error while trying to fix '#' links: ", e)
   }
 })
 export default angular.bootstrap(document.body, ['SharelatexApp'])

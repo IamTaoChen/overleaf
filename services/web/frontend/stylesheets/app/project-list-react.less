@@ -79,8 +79,6 @@
     width: 100%;
 
     .welcome-new-wrapper {
-      max-width: 1080px;
-
       .welcome-title {
         font-size: 32px;
       }
@@ -151,6 +149,7 @@
             display: flex;
             align-items: center;
             width: 100%;
+
             &:hover {
               background-color: @ol-blue-gray-0;
             }
@@ -423,6 +422,9 @@
       color: @ol-type-color;
       padding: 0;
       font-weight: bold;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
 
       &:hover,
       &:focus {
@@ -442,26 +444,19 @@
 
     .dash-cell-name {
       width: 50%;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .dash-cell-owner {
       width: 20%;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .dash-cell-date {
       width: 25%;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .dash-cell-actions {
       display: none;
       text-align: right;
-      white-space: nowrap;
     }
 
     .dash-cell-date-owner {
@@ -469,7 +464,8 @@
       .text-overflow();
     }
 
-    .dash-cell-tag {
+    .dash-cell-tag,
+    .clone-project-tag {
       .tag-label {
         padding: 14px 0;
         cursor: pointer;
@@ -519,20 +515,20 @@
       }
 
       .dash-cell-name {
-        width: 48%;
+        width: 45%;
       }
 
       .dash-cell-owner {
-        width: 13%;
+        width: 16%;
       }
 
       .dash-cell-date {
-        width: 15%;
+        width: 21%;
       }
 
       .dash-cell-actions {
         display: table-cell;
-        width: 21%;
+        width: 15%;
       }
 
       .project-tools {
@@ -546,7 +542,7 @@
       }
 
       .dash-cell-name {
-        width: 50%;
+        width: 46%;
       }
 
       .dash-cell-owner {
@@ -558,7 +554,13 @@
       }
 
       .dash-cell-actions {
-        width: 18%;
+        width: 22%;
+      }
+
+      tbody {
+        .dash-cell-actions {
+          white-space: nowrap;
+        }
       }
     }
 
@@ -568,7 +570,7 @@
       }
 
       .dash-cell-name {
-        width: 50%;
+        width: 46%;
       }
 
       .dash-cell-owner {
@@ -580,7 +582,7 @@
       }
 
       .dash-cell-actions {
-        width: 13%;
+        width: 17%;
       }
     }
 
@@ -590,7 +592,7 @@
       }
 
       .dash-cell-name {
-        width: 50%;
+        width: 49%;
       }
 
       .dash-cell-owner {
@@ -602,7 +604,7 @@
       }
 
       .dash-cell-actions {
-        width: 13%;
+        width: 14%;
       }
     }
 
@@ -976,5 +978,13 @@
     right: 0;
     bottom: 0;
     left: 0;
+  }
+}
+
+.clone-project-tag {
+  display: flex;
+
+  &:hover .label.tag-label-name {
+    background-color: @tag-bg-color;
   }
 }

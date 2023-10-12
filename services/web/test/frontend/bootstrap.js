@@ -1,6 +1,7 @@
 // Run babel on tests to allow support for import/export statements in Node
 require('@babel/register')({
   extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs'],
+  plugins: [['module-resolver', { alias: { '^@/(.+)': './frontend/js/\\1' } }]],
 })
 
 // Load JSDOM to mock the DOM in Node
@@ -45,7 +46,6 @@ window.ExposedSettings = {
     'rtex',
     'md',
     'asy',
-    'latexmkrc',
     'lbx',
     'bbx',
     'cbx',
@@ -61,7 +61,10 @@ window.ExposedSettings = {
     'lua',
     'gv',
     'mf',
+    'lhs',
+    'mk',
   ],
+  editableFilenames: ['latexmkrc', '.latexmkrc', 'makefile', 'gnumakefile'],
 }
 
 window.i18n = { currentLangCode: 'en' }

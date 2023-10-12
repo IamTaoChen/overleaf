@@ -28,12 +28,6 @@ module.exports = {
     )
 
     webRouter.get(
-      '/user/subscription/new',
-      AuthenticationController.requireLogin(),
-      SubscriptionController.paymentPage
-    )
-
-    webRouter.get(
       '/user/subscription/choose-your-plan',
       AuthenticationController.requireLogin(),
       SubscriptionController.interstitialPaymentPage
@@ -89,12 +83,6 @@ module.exports = {
     )
 
     // user changes their account state
-    webRouter.post(
-      '/user/subscription/create',
-      AuthenticationController.requireLogin(),
-      PermissionsController.requirePermission('start-subscription'),
-      SubscriptionController.createSubscription
-    )
     webRouter.post(
       '/user/subscription/update',
       AuthenticationController.requireLogin(),

@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view'
 import { round } from 'lodash'
 import grammarlyExtensionPresent from '../shared/utils/grammarly'
 import getMeta from '../utils/meta'
+import { debugConsole } from '@/utils/debugging'
 
 const TIMER_START_NAME = 'CM6-BeforeUpdate'
 const TIMER_END_NAME = 'CM6-AfterUpdate'
@@ -81,8 +82,8 @@ function isKeypress(userEventType: string | undefined) {
 }
 
 export function dispatchTimer(): {
-  start: (tr: Transaction) => void
-  end: (tr: Transaction, view: EditorView) => void
+  start: (trs: readonly Transaction[]) => void
+  end: (trs: readonly Transaction[], view: EditorView) => void
 } {
   if (!performanceOptionsSupport) {
     return { start: () => {}, end: () => {} }
@@ -92,34 +93,45 @@ export function dispatchTimer(): {
   let keypressesSinceDomUpdateCount = 0
   const unpaintedKeypressStartTimes: number[] = []
 
-  const start = (tr: Transaction) => {
-    const userEventType = tr.annotation(Transaction.userEvent)
+  const start = (trs: readonly Transaction[]) => {
+    const keypressStart = performance.now()
 
-    if (isKeypress(userEventType)) {
-      unpaintedKeypressStartTimes.push(performance.now())
-    }
+    trs.forEach(tr => {
+      const userEventType = tr.annotation(Transaction.userEvent)
+
+      if (isKeypress(userEventType)) {
+        unpaintedKeypressStartTimes.push(keypressStart)
+      }
+    })
 
     performance.mark(TIMER_START_NAME)
   }
 
-  const end = (tr: Transaction, view: EditorView) => {
+  const end = (trs: readonly Transaction[], view: EditorView) => {
     performance.mark(TIMER_END_NAME)
 
-    const userEventType = tr.annotation(Transaction.userEvent)
+    let anyInputOrDelete = false
 
-    if (isInputOrDelete(userEventType)) {
-      ++userEventsSinceDomUpdateCount
+    trs.forEach(tr => {
+      const userEventType = tr.annotation(Transaction.userEvent)
 
-      if (isKeypress(userEventType)) {
-        ++keypressesSinceDomUpdateCount
+      if (isInputOrDelete(userEventType)) {
+        anyInputOrDelete = true
+        ++userEventsSinceDomUpdateCount
+
+        if (isKeypress(userEventType)) {
+          ++keypressesSinceDomUpdateCount
+        }
+
+        performance.measure(TIMER_MEASURE_NAME, {
+          start: TIMER_START_NAME,
+          end: TIMER_END_NAME,
+          detail: { userEventType, userEventsSinceDomUpdateCount },
+        })
       }
+    })
 
-      performance.measure(TIMER_MEASURE_NAME, {
-        start: TIMER_START_NAME,
-        end: TIMER_END_NAME,
-        detail: { userEventType, userEventsSinceDomUpdateCount },
-      })
-
+    if (anyInputOrDelete) {
       // The `key` property ensures that the measurement task is only run once
       // per measure phase
       view.requestMeasure({
@@ -144,7 +156,7 @@ export function dispatchTimer(): {
       })
     }
 
-    latestDocLength = tr.state.doc.length
+    latestDocLength = trs[trs.length - 1].state.doc.length
   }
 
   return { start, end }
@@ -315,5 +327,5 @@ export function reportCM6Perf() {
 }
 
 window._reportCM6Perf = () => {
-  console.log(reportCM6Perf())
+  debugConsole.warn(reportCM6Perf())
 }

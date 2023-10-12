@@ -1,4 +1,3 @@
-const { expect } = require('chai')
 const { CookieJar } = require('tough-cookie')
 const AuthenticationManager = require('../../../../app/src/Features/Authentication/AuthenticationManager')
 const Settings = require('@overleaf/settings')
@@ -13,6 +12,16 @@ const { ObjectId } = require('mongodb')
 const {
   UserAuditLogEntry,
 } = require('../../../../app/src/models/UserAuditLogEntry')
+
+// Import the rate limiter so we can clear it between tests
+
+const {
+  RateLimiter,
+} = require('../../../../app/src/infrastructure/RateLimiter')
+
+const rateLimiters = {
+  resendConfirmation: new RateLimiter('resend-confirmation'),
+}
 
 let globalUserNum = Settings.test.counterInit
 
@@ -89,7 +98,7 @@ class UserHelper {
   async fetch(url, opts = {}) {
     url = UserHelper.url(url)
     const headers = {}
-    const cookieString = this.jar.getCookieStringSync(url)
+    const cookieString = this.jar.getCookieStringSync(url.toString())
     if (cookieString) {
       headers.Cookie = cookieString
     }
@@ -106,7 +115,7 @@ class UserHelper {
     const cookies = response.headers.raw()['set-cookie']
     if (cookies != null) {
       for (const cookie of cookies) {
-        this.jar.setCookieSync(cookie, url)
+        this.jar.setCookieSync(cookie, url.toString())
       }
     }
     return response
@@ -120,7 +129,15 @@ class UserHelper {
   async getCsrfToken() {
     // get csrf token from api and store
     const response = await this.fetch('/dev/csrf')
-    this._csrfToken = await response.text()
+    const body = await response.text()
+    if (response.status !== 200) {
+      throw new Error(
+        `get csrf token failed: status=${response.status} body=${JSON.stringify(
+          body
+        )}`
+      )
+    }
+    this._csrfToken = body
   }
 
   /**
@@ -135,7 +152,14 @@ class UserHelper {
       response.status !== 302 ||
       !response.headers.get('location').includes('/login')
     ) {
-      throw new Error('logout failed')
+      const body = await response.text()
+      throw new Error(
+        `logout failed: status=${response.status} body=${JSON.stringify(
+          body
+        )} headers=${JSON.stringify(
+          Object.fromEntries(response.headers.entries())
+        )}`
+      )
     }
     // after logout CSRF token becomes invalid
     this._csrfToken = ''
@@ -251,14 +275,21 @@ class UserHelper {
       }),
     })
     if (!response.ok) {
-      const error = new Error('login failed')
+      const body = await response.text()
+      const error = new Error(
+        `login failed: status=${response.status} body=${JSON.stringify(body)}`
+      )
       error.response = response
       throw error
     }
 
     const body = await response.json()
     if (body.redir !== '/project') {
-      const error = new Error('login failed')
+      const error = new Error(
+        `login should redirect to /project: status=${
+          response.status
+        } body=${JSON.stringify(body)}`
+      )
       error.response = response
       throw error
     }
@@ -307,6 +338,13 @@ class UserHelper {
       ...options,
     })
     const body = await response.json()
+    if (response.status !== 200) {
+      throw new Error(
+        `register failed: status=${response.status} body=${JSON.stringify(
+          body
+        )}`
+      )
+    }
     if (body.message && body.message.type === 'error') {
       throw new Error(`register api error: ${body.message.text}`)
     }
@@ -338,7 +376,14 @@ class UserHelper {
       method: 'POST',
       body: new URLSearchParams([['email', email]]),
     })
-    expect(response.status).to.equal(204)
+    const body = await response.text()
+    if (response.status !== 204) {
+      throw new Error(
+        `add email failed: status=${response.status} body=${JSON.stringify(
+          body
+        )}`
+      )
+    }
   }
 
   async addEmailAndConfirm(userId, email) {
@@ -403,12 +448,21 @@ class UserHelper {
   }
 
   async confirmEmail(userId, email) {
+    // clear ratelimiting on resend confirmation endpoint
+    await rateLimiters.resendConfirmation.delete(userId)
     // UserHelper.createUser does not create a confirmation token
     let response = await this.fetch('/user/emails/resend_confirmation', {
       method: 'POST',
       body: new URLSearchParams([['email', email]]),
     })
-    expect(response.status).to.equal(200)
+    if (response.status !== 200) {
+      const body = await response.text()
+      throw new Error(
+        `resend confirmation failed: status=${
+          response.status
+        } body=${JSON.stringify(body)}`
+      )
+    }
     const tokenData = await db.tokens
       .find({
         use: 'email_confirmation',
@@ -421,7 +475,14 @@ class UserHelper {
       method: 'POST',
       body: new URLSearchParams([['token', tokenData.token]]),
     })
-    expect(response.status).to.equal(200)
+    if (response.status !== 200) {
+      const body = await response.text()
+      throw new Error(
+        `confirm email failed: status=${response.status} body=${JSON.stringify(
+          body
+        )}`
+      )
+    }
   }
 }
 

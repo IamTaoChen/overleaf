@@ -6,7 +6,7 @@ volumes:
 services:
 
   test_unit:
-    image: node:18.17.1
+    image: node:18.18.0
     volumes:
       - .:/overleaf/services/web
       - ../../node_modules:/overleaf/node_modules
@@ -21,7 +21,7 @@ services:
     user: node
 
   test_acceptance:
-    image: node:18.17.1
+    image: node:18.18.0
     volumes:
       - .:/overleaf/services/web
       - ../../node_modules:/overleaf/node_modules
@@ -72,14 +72,17 @@ services:
     environment:
       MOCHA_GREP: ${MOCHA_GREP}
       NODE_OPTIONS: "--unhandled-rejections=strict"
+      VERBOSE_LOGGING:
     command: npm run --silent test:frontend
     user: node
 
   test_frontend_ct:
-    image: cypress/included:12.17.1
+    image: cypress/included:13.3.0
     volumes:
       - ../../:/overleaf
     working_dir: /overleaf/services/web
+    environment:
+      VERBOSE_LOGGING:
     entrypoint: npm
     command:
       - "run"
@@ -93,7 +96,6 @@ services:
     command: --replSet overleaf
 
   ldap:
-    restart: always
     image: rroemhild/test-openldap:1.1
     # Workaround large memory allocation (using the max-open-files-limit as socket buffer scale).
     # REF: https://github.com/moby/moby/issues/8231#issuecomment-63877553
@@ -104,7 +106,6 @@ services:
       - 'ulimit -n 1024 && exec bash /run.sh'
 
   saml:
-      restart: always
       image: gcr.io/overleaf-ops/saml-test
       environment:
           SAML_BASE_URL_PATH: 'http://saml/simplesaml/'

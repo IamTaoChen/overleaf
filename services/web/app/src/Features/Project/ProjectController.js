@@ -37,6 +37,7 @@ const { hasAdminAccess } = require('../Helpers/AdminAuthorizationHelper')
 const InstitutionsFeatures = require('../Institutions/InstitutionsFeatures')
 const ProjectAuditLogHandler = require('./ProjectAuditLogHandler')
 const PublicAccessLevels = require('../Authorization/PublicAccessLevels')
+const TagsHandler = require('../Tags/TagsHandler')
 
 /**
  * @typedef {import("./types").GetProjectsRequest} GetProjectsRequest
@@ -132,6 +133,7 @@ const ProjectController = {
           projectId,
           'toggle-access-level',
           user._id,
+          req.ip,
           { publicAccessLevel: req.body.publicAccessLevel, status: 'OK' },
           callback
         )
@@ -253,7 +255,7 @@ const ProjectController = {
     res.setTimeout(5 * 60 * 1000) // allow extra time for the copy to complete
     metrics.inc('cloned-project')
     const projectId = req.params.Project_id
-    const { projectName } = req.body
+    const { projectName, tags } = req.body
     logger.debug({ projectId, projectName }, 'cloning project')
     if (!SessionManager.isUserLoggedIn(req.session)) {
       return res.json({ redir: '/register' })
@@ -264,6 +266,7 @@ const ProjectController = {
       currentUser,
       projectId,
       projectName,
+      tags,
       (err, project) => {
         if (err != null) {
           OError.tag(err, 'error cloning project', {
@@ -427,6 +430,7 @@ const ProjectController = {
         },
         user(cb) {
           if (userId == null) {
+            SplitTestHandler.sessionMaintenance(req, null, () => {})
             cb(null, defaultSettingsForAnonymousUser(userId))
           } else {
             User.updateOne(
@@ -437,7 +441,7 @@ const ProjectController = {
             )
             User.findById(
               userId,
-              'email first_name last_name referal_id signUpDate featureSwitches features featuresEpoch refProviders alphaProgram betaProgram isAdmin ace labsProgram',
+              'email first_name last_name referal_id signUpDate featureSwitches features featuresEpoch refProviders alphaProgram betaProgram isAdmin ace labsProgram completedTutorials',
               (err, user) => {
                 // Handle case of deleted user
                 if (user == null) {
@@ -448,6 +452,7 @@ const ProjectController = {
                   return cb(err)
                 }
                 logger.debug({ projectId, userId }, 'got user')
+                SplitTestHandler.sessionMaintenance(req, user, () => {})
                 if (FeaturesUpdater.featuresEpochIsCurrent(user)) {
                   return cb(null, user)
                 }
@@ -632,82 +637,14 @@ const ProjectController = {
             }
           )
         },
-        editorLeftMenuAssignment(cb) {
+        tableGeneratorPromotionAssignment(cb) {
           SplitTestHandler.getAssignment(
             req,
             res,
-            'editor-left-menu',
-            (error, assignment) => {
-              // do not fail editor load if assignment fails
-              if (error) {
-                cb(null, { variant: 'default' })
-              } else {
-                cb(null, assignment)
-              }
-            }
-          )
-        },
-        editorDocumentationButton(cb) {
-          SplitTestHandler.getAssignment(
-            req,
-            res,
-            'documentation-on-editor',
-            (error, assignment) => {
-              // do not fail editor load if assignment fails
-              if (error) {
-                cb(null, { variant: 'default' })
-              } else {
-                cb(null, assignment)
-              }
-            }
-          )
-        },
-        // this is only needed until the survey link is removed from the toolbar
-        richTextAssignment(cb) {
-          SplitTestHandler.getAssignment(
-            req,
-            res,
-            'rich-text',
-            (error, assignment) => {
-              // do not fail editor load if assignment fails
-              if (error) {
-                cb(null, { variant: 'default' })
-              } else {
-                cb(null, assignment)
-              }
-            }
-          )
-        },
-        figureModalAssignment(cb) {
-          SplitTestHandler.getAssignment(req, res, 'figure-modal', () => {
-            // We'll pick up the assignment from the res.locals assignment.
-            cb()
-          })
-        },
-        tableGeneratorAssignment(cb) {
-          SplitTestHandler.getAssignment(req, res, 'table-generator', () => {
-            // We'll pick up the assignment from the res.locals assignment.
-            cb()
-          })
-        },
-        pasteHtmlAssignment(cb) {
-          SplitTestHandler.getAssignment(req, res, 'paste-html', () => {
-            // We'll pick up the assignment from the res.locals assignment.
-            cb()
-          })
-        },
-        sourceEditorToolbarAssigment(cb) {
-          SplitTestHandler.getAssignment(
-            req,
-            res,
-            'source-editor-toolbar',
-            (error, assignment) => {
-              // do not fail editor load if assignment fails
-              if (error) {
-                cb(null, { variant: 'default' })
-              } else {
-                cb(null, assignment)
-              }
+            'table-generator-promotion',
+            () => {
+              // We'll pick up the assignment from the res.locals assignment.
+              cb()
             }
           )
         },
@@ -715,7 +652,7 @@ const ProjectController = {
           SplitTestHandler.getAssignment(
             req,
             res,
-            'history-view',
+            'history-view-version',
             (error, assignment) => {
               // do not fail editor load if assignment fails
               if (error) {
@@ -741,6 +678,12 @@ const ProjectController = {
             }
           )
         },
+        projectTags(cb) {
+          if (!userId) {
+            return cb(null, [])
+          }
+          TagsHandler.getTagsForProject(userId, projectId, cb)
+        },
       },
       (
         err,
@@ -755,10 +698,9 @@ const ProjectController = {
           isInvitedMember,
           brandVariation,
           pdfjsAssignment,
-          editorLeftMenuAssignment,
-          sourceEditorToolbarAssigment,
           historyViewAssignment,
           reviewPanelAssignment,
+          projectTags,
         }
       ) => {
         if (err != null) {
@@ -846,9 +788,6 @@ const ProjectController = {
               // Allow override via legacy_source_editor=true in query string
               shouldDisplayFeature('legacy_source_editor')
 
-            const editorLeftMenuReact =
-              editorLeftMenuAssignment?.variant === 'react'
-
             const showSymbolPalette =
               !Features.hasFeature('saas') ||
               (user.features && user.features.symbolPalette)
@@ -866,9 +805,14 @@ const ProjectController = {
               !Features.hasFeature('saas') ||
               req.query?.personal_access_token === 'true'
 
+            const idePageReact = req.query?.['ide-page'] === 'react'
+
             const template =
               detachRole === 'detached'
-                ? 'project/editor_detached'
+                ? // TODO: Create React version of detached page
+                  'project/editor_detached'
+                : idePageReact
+                ? 'project/ide-react'
                 : 'project/editor'
 
             res.render(template, {
@@ -877,7 +821,6 @@ const ProjectController = {
               bodyClasses: ['editor'],
               project_id: project._id,
               projectName: project.name,
-              editorLeftMenuReact,
               user: {
                 id: userId,
                 email: user.email,
@@ -892,6 +835,7 @@ const ProjectController = {
                 alphaProgram: user.alphaProgram,
                 betaProgram: user.betaProgram,
                 labsProgram: user.labsProgram,
+                completedTutorials: user.completedTutorials,
                 isAdmin: hasAdminAccess(user),
               },
               userSettings: {
@@ -930,9 +874,7 @@ const ProjectController = {
               pdfjsVariant: pdfjsAssignment.variant,
               debugPdfDetach,
               showLegacySourceEditor,
-              showSourceToolbar:
-                !showLegacySourceEditor &&
-                sourceEditorToolbarAssigment.variant === 'enabled',
+              showSourceToolbar: !showLegacySourceEditor,
               showSymbolPalette,
               symbolPaletteAvailable: Features.hasFeature('symbol-palette'),
               detachRole,
@@ -945,6 +887,7 @@ const ProjectController = {
               isReviewPanelReact: reviewPanelAssignment.variant === 'react',
               showPersonalAccessToken,
               hasTrackChangesFeature: Features.hasFeature('track-changes'),
+              projectTags,
             })
             timer.done()
           }

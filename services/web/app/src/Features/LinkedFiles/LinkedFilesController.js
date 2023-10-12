@@ -34,9 +34,15 @@ const {
   RemoteServiceError,
   FileCannotRefreshError,
 } = require('./LinkedFilesErrors')
-const { OutputFileFetchFailedError } = require('../Errors/Errors')
+const {
+  OutputFileFetchFailedError,
+  FileTooLargeError,
+  OError,
+} = require('../Errors/Errors')
 const Modules = require('../../infrastructure/Modules')
 const { plainTextResponse } = require('../../infrastructure/Response')
+const ReferencesHandler = require('../References/ReferencesHandler')
+const EditorRealTimeController = require('../Editor/EditorRealTimeController')
 
 module.exports = LinkedFilesController = {
   Agents: _.extend(
@@ -119,7 +125,7 @@ module.exports = LinkedFilesController = {
           return res.sendStatus(400)
         }
 
-        return Agent.refreshLinkedFile(
+        Agent.refreshLinkedFile(
           projectId,
           linkedFileData,
           name,
@@ -129,7 +135,25 @@ module.exports = LinkedFilesController = {
             if (err != null) {
               return LinkedFilesController.handleError(err, req, res, next)
             }
-            return res.json({ new_file_id: newFileId })
+            if (req.body.shouldReindexReferences) {
+              ReferencesHandler.indexAll(projectId, function (error, data) {
+                if (error) {
+                  OError.tag(error, 'failed to index references', {
+                    projectId,
+                  })
+                  return next(error)
+                }
+                EditorRealTimeController.emitToRoom(
+                  projectId,
+                  'references:keys:updated',
+                  data.keys,
+                  true
+                )
+                res.json({ new_file_id: newFileId })
+              })
+            } else {
+              res.json({ new_file_id: newFileId })
+            }
           }
         )
       }
@@ -174,10 +198,16 @@ module.exports = LinkedFilesController = {
       plainTextResponse(res, 'Could not get output file')
     } else if (error instanceof UrlFetchFailedError) {
       res.status(422)
-      plainTextResponse(
-        res,
-        `Your URL could not be reached (${error.statusCode} status code). Please check it and try again.`
-      )
+      if (error.cause instanceof FileTooLargeError) {
+        plainTextResponse(res, 'File too large')
+      } else {
+        plainTextResponse(
+          res,
+          `Your URL could not be reached (${
+            error.info?.status || error.cause?.info?.status
+          } status code). Please check it and try again.`
+        )
+      }
     } else if (error instanceof InvalidUrlError) {
       res.status(422)
       plainTextResponse(
@@ -209,6 +239,9 @@ module.exports = LinkedFilesController = {
     } else if (/\bECONNREFUSED\b/.test(error.message)) {
       res.status(500)
       plainTextResponse(res, 'Importing references is not currently available')
+    } else if (error instanceof FileTooLargeError) {
+      res.status(422)
+      plainTextResponse(res, 'File too large')
     } else {
       next(error)
     }

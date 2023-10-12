@@ -158,7 +158,10 @@ export default function ManagedUserDropdownButton({
         </Dropdown.Toggle>
         <Dropdown.Menu className="dropdown-menu-right managed-user-dropdown-menu">
           {userPending ? (
-            <MenuItemButton onClick={onResendGroupInviteClick}>
+            <MenuItemButton
+              onClick={onResendGroupInviteClick}
+              data-testid="resend-group-invite-action"
+            >
               {t('resend_group_invite')}
               {isResendingGroupInvite ? (
                 <Icon type="spinner" spin style={{ marginLeft: '5px' }} />
@@ -166,14 +169,21 @@ export default function ManagedUserDropdownButton({
             </MenuItemButton>
           ) : null}
           {userNotManaged ? (
-            <MenuItemButton onClick={onResendManagedUserInviteClick}>
+            <MenuItemButton
+              onClick={onResendManagedUserInviteClick}
+              data-testid="resend-managed-user-invite-action"
+            >
               {t('resend_managed_user_invite')}
               {isResendingManagedUserInvite ? (
                 <Icon type="spinner" spin style={{ marginLeft: '5px' }} />
               ) : null}
             </MenuItemButton>
           ) : null}
-          {user.enrollment?.managedBy ? (
+          {user.isEntityAdmin ? (
+            <MenuItem data-testid="no-actions-available">
+              <span className="text-muted">{t('no_actions')}</span>
+            </MenuItem>
+          ) : user.enrollment?.managedBy ? (
             <MenuItemButton
               className="delete-user-action"
               data-testid="delete-user-action"
@@ -181,10 +191,6 @@ export default function ManagedUserDropdownButton({
             >
               {t('delete_user')}
             </MenuItemButton>
-          ) : user.isEntityAdmin ? (
-            <MenuItem data-testid="no-actions-available">
-              <span className="text-muted">{t('no_actions')}</span>
-            </MenuItem>
           ) : (
             <MenuItemButton
               onClick={onRemoveFromGroup}

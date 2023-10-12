@@ -103,7 +103,7 @@ export class FetchError extends OError {
 function fetchJSON<T>(
   path: FetchPath,
   {
-    body = {},
+    body,
     headers = {},
     method = 'GET',
     credentials = 'same-origin',
@@ -123,7 +123,7 @@ function fetchJSON<T>(
     method,
   }
 
-  if (method !== 'GET' && method !== 'HEAD') {
+  if (body !== undefined) {
     options.body = JSON.stringify(body)
   }
 
@@ -153,6 +153,11 @@ function fetchJSON<T>(
             }
           },
           error => {
+            // swallow the error if the fetch was cancelled (e.g. by cancelling an AbortController on component unmount)
+            if (swallowAbortError && error.name === 'AbortError') {
+              // the fetch request was aborted while reading/parsing the response body
+              return
+            }
             // parsing the response body failed
             reject(
               new FetchError(
@@ -168,6 +173,7 @@ function fetchJSON<T>(
       error => {
         // swallow the error if the fetch was cancelled (e.g. by cancelling an AbortController on component unmount)
         if (swallowAbortError && error.name === 'AbortError') {
+          // the fetch request was aborted before a response was returned
           return
         }
         // the fetch failed

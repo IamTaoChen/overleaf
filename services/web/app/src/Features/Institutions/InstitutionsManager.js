@@ -7,6 +7,7 @@ const { fetchJson } = require('@overleaf/fetch-utils')
 const {
   getInstitutionAffiliations,
   getConfirmedInstitutionAffiliations,
+  addAffiliation,
   promises: InstitutionsAPIPromises,
 } = require('./InstitutionsAPI')
 const FeaturesUpdater = require('../Subscription/FeaturesUpdater')
@@ -17,6 +18,8 @@ const NotificationsHandler = require('../Notifications/NotificationsHandler')
 const SubscriptionLocator = require('../Subscription/SubscriptionLocator')
 const { Institution } = require('../../models/Institution')
 const { Subscription } = require('../../models/Subscription')
+const Queues = require('../../infrastructure/Queues')
+const OError = require('@overleaf/o-error')
 
 const ASYNC_LIMIT = parseInt(process.env.ASYNC_LIMIT, 10) || 5
 
@@ -249,6 +252,27 @@ const InstitutionsManager = {
         .exec(callback)
     })
   },
+
+  affiliateUsers(hostname, callback) {
+    const reversedHostname = hostname.trim().split('').reverse().join('')
+    UserGetter.getInstitutionUsersByHostname(hostname, (error, users) => {
+      if (error) {
+        OError.tag(error, 'problem fetching users by hostname')
+        return callback(error)
+      }
+
+      async.mapLimit(
+        users,
+        ASYNC_LIMIT,
+        (user, innerCallback) => {
+          affiliateUserByReversedHostname(user, reversedHostname, innerCallback)
+        },
+        callback
+      )
+    })
+  },
+
+  confirmDomain: callbackify(confirmDomain),
 }
 
 const fetchInstitutionAndAffiliations = (institutionId, callback) =>
@@ -298,7 +322,7 @@ function refreshFeaturesAndNotify(affiliation, callback) {
 const getUserInfo = (userId, callback) =>
   async.waterfall(
     [
-      cb => UserGetter.getUser(userId, cb),
+      cb => UserGetter.getUser(userId, { _id: 1 }, cb),
       (user, cb) =>
         SubscriptionLocator.getUsersSubscription(user, (err, subscription) =>
           cb(err, user, subscription)
@@ -359,7 +383,57 @@ async function fetchV1Data(institution) {
   }
 }
 
+/**
+ * Enqueue a job for adding affiliations for when a domain is confirmed
+ */
+async function confirmDomain(hostname) {
+  const queue = Queues.getQueue('confirm-institution-domain')
+  await queue.add({ hostname })
+}
+
+function affiliateUserByReversedHostname(user, reversedHostname, callback) {
+  const matchingEmails = user.emails.filter(
+    email => email.reversedHostname === reversedHostname
+  )
+  async.mapSeries(
+    matchingEmails,
+    (email, innerCallback) => {
+      addAffiliation(
+        user._id,
+        email.email,
+        {
+          confirmedAt: email.confirmedAt,
+          entitlement:
+            email.samlIdentifier && email.samlIdentifier.hasEntitlement,
+        },
+        error => {
+          if (error) {
+            OError.tag(
+              error,
+              'problem adding affiliation while confirming hostname'
+            )
+            return innerCallback(error)
+          }
+          innerCallback()
+        }
+      )
+    },
+    err => {
+      if (err) {
+        return callback(err)
+      }
+      FeaturesUpdater.refreshFeatures(
+        user._id,
+        'affiliate-user-by-reversed-hostname',
+        callback
+      )
+    }
+  )
+}
+
 InstitutionsManager.promises = {
+  affiliateUsers: promisify(InstitutionsManager.affiliateUsers),
+  confirmDomain,
   checkInstitutionUsers,
   clearInstitutionNotifications: promisify(
     InstitutionsManager.clearInstitutionNotifications

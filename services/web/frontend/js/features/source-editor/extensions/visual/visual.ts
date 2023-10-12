@@ -11,7 +11,6 @@ import { atomicDecorations } from './atomic-decorations'
 import { markDecorations } from './mark-decorations'
 import { EditorView, ViewPlugin } from '@codemirror/view'
 import { visualKeymap } from './visual-keymap'
-import { skipPreambleWithCursor } from './skip-preamble-cursor'
 import { mousedown, mouseDownEffect } from './selection'
 import { findEffect } from '../../utils/effects'
 import { forceParsing, syntaxTree } from '@codemirror/language'
@@ -20,13 +19,11 @@ import { restoreScrollPosition } from '../scroll-position'
 import { CurrentDoc } from '../../../../../../types/current-doc'
 import isValidTeXFile from '../../../../main/is-valid-tex-file'
 import { listItemMarker } from './list-item-marker'
-import { figureModalPasteHandler } from '../figure-modal'
-import { isSplitTestEnabled } from '../../../../utils/splitTestUtils'
-import { toolbarPanel } from '../toolbar/toolbar-panel'
 import { selectDecoratedArgument } from './select-decorated-argument'
 import { pasteHtml } from './paste-html'
 import { commandTooltip } from '../command-tooltip'
 import { tableGeneratorTheme } from './table-generator'
+import { debugConsole } from '@/utils/debugging'
 
 type Options = {
   visual: boolean
@@ -164,9 +161,7 @@ const showContentWhenParsed = [
               window.clearTimeout(fallbackTimer)
               // show the content, in a timeout so the decorations can build first
               window.setTimeout(showContent)
-            }).catch(error => {
-              console.error(error)
-            })
+            }).catch(debugConsole.error)
           })
         }
       },
@@ -200,14 +195,11 @@ const extension = (options: Options) => [
   listItemMarker,
   atomicDecorations(options),
   markDecorations, // NOTE: must be after atomicDecorations, so that mark decorations wrap inline widgets
-  skipPreambleWithCursor,
   visualKeymap,
   commandTooltip,
   scrollJumpAdjuster,
-  isSplitTestEnabled('source-editor-toolbar') ? [] : toolbarPanel(),
   selectDecoratedArgument,
   showContentWhenParsed,
-  figureModalPasteHandler(),
-  isSplitTestEnabled('paste-html') ? pasteHtml : [],
-  isSplitTestEnabled('table-generator') ? tableGeneratorTheme : [],
+  pasteHtml,
+  tableGeneratorTheme,
 ]

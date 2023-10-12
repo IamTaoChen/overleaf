@@ -8,7 +8,6 @@ declare global {
   // eslint-disable-next-line no-unused-vars
   interface Window {
     csrfToken: string
-    sl_debugging: boolean
     user: User
     user_id?: string
     oauthProviders: OAuthProviders
@@ -40,5 +39,6 @@ declare global {
       enterprise?: boolean
       useRecaptchaNet?: boolean
     }
+    expectingLinkedFileRefreshedSocketFor?: string | null
   }
 }

@@ -1,14 +1,13 @@
 import moment from 'moment'
-import { type Dispatch, type SetStateAction, useCallback } from 'react'
-import { Col, Row } from 'react-bootstrap'
+import { type Dispatch, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { User } from '../../../../../../types/group-management/user'
 import Badge from '../../../../shared/components/badge'
 import Tooltip from '../../../../shared/components/tooltip'
 import type { ManagedUserAlert } from '../../utils/types'
-import { useGroupMembersContext } from '../../context/group-members-context'
 import ManagedUserStatus from './managed-user-status'
 import ManagedUserDropdownButton from './managed-user-dropdown-button'
+import ManagedUsersSelectUserCheckbox from './managed-users-select-user-checkbox'
 
 type ManagedUserRowProps = {
   user: User
@@ -24,94 +23,69 @@ export default function ManagedUserRow({
   groupId,
 }: ManagedUserRowProps) {
   const { t } = useTranslation()
-  const { selectedUsers, selectUser, unselectUser } = useGroupMembersContext()
-
-  const handleSelectUser = useCallback(
-    (event, user) => {
-      if (event.target.checked) {
-        selectUser(user)
-      } else {
-        unselectUser(user)
-      }
-    },
-    [selectUser, unselectUser]
-  )
-
-  const selected = selectedUsers.includes(user)
 
   return (
-    <li
+    <tr
       key={`user-${user.email}`}
       className={`managed-user-row ${user.invite ? 'text-muted' : ''}`}
     >
-      <Row>
-        <Col xs={6}>
-          <label htmlFor={`select-user-${user.email}`} className="sr-only">
-            {t('select_user')}
-          </label>
-          <input
-            className="select-item"
-            id={`select-user-${user.email}`}
-            type="checkbox"
-            checked={selected}
-            onChange={e => handleSelectUser(e, user)}
-          />
-          <span>
-            {user.email}
-            {user.invite ? (
-              <span>
-                &nbsp;
-                <Tooltip
-                  id={`pending-invite-symbol-${user._id}`}
-                  description={t('pending_invite')}
-                >
-                  <Badge aria-label={t('pending_invite')}>
-                    {t('pending_invite')}
-                  </Badge>
-                </Tooltip>
-              </span>
-            ) : (
-              ''
-            )}
-            {user.isEntityAdmin && (
-              <span>
-                &nbsp;
-                <Tooltip
-                  id={`group-admin-symbol-${user._id}`}
-                  description={t('group_admin')}
-                >
-                  <i
-                    className="fa fa-user-circle-o"
-                    aria-hidden="true"
-                    aria-label={t('group_admin')}
-                  />
-                </Tooltip>
-              </span>
-            )}
-          </span>
-        </Col>
-        <Col xs={2}>
-          <span>
-            {user.first_name} {user.last_name}
-          </span>
-        </Col>
-        <Col xs={2}>
-          {user.last_active_at
-            ? moment(user.last_active_at).format('Do MMM YYYY')
-            : 'N/A'}
-        </Col>
-        <Col xs={2}>
-          <div className="managed-user-security">
-            <ManagedUserStatus user={user} />
-            <ManagedUserDropdownButton
-              user={user}
-              openOffboardingModalForUser={openOffboardingModalForUser}
-              setManagedUserAlert={setManagedUserAlert}
-              groupId={groupId}
-            />
-          </div>
-        </Col>
-      </Row>
-    </li>
+      <ManagedUsersSelectUserCheckbox user={user} />
+      <td className="cell-email">
+        <span>
+          {user.email}
+          {user.invite ? (
+            <span>
+              &nbsp;
+              <Tooltip
+                id={`pending-invite-symbol-${user._id}`}
+                description={t('pending_invite')}
+              >
+                <Badge aria-label={t('pending_invite')}>
+                  {t('pending_invite')}
+                </Badge>
+              </Tooltip>
+            </span>
+          ) : (
+            ''
+          )}
+          {user.isEntityAdmin && (
+            <span>
+              &nbsp;
+              <Tooltip
+                id={`group-admin-symbol-${user._id}`}
+                description={t('group_admin')}
+              >
+                <i
+                  className="fa fa-user-circle-o"
+                  aria-hidden="true"
+                  aria-label={t('group_admin')}
+                />
+              </Tooltip>
+            </span>
+          )}
+        </span>
+      </td>
+      <td className="cell-name">
+        {user.first_name} {user.last_name}
+      </td>
+      <td className="cell-last-active">
+        {user.last_active_at
+          ? moment(user.last_active_at).format('Do MMM YYYY')
+          : 'N/A'}
+      </td>
+      <td className="cell-security">
+        <div className="managed-user-security">
+          <ManagedUserStatus user={user} />
+        </div>
+      </td>
+      <td className="cell-dropdown">
+        <ManagedUserDropdownButton
+          user={user}
+          openOffboardingModalForUser={openOffboardingModalForUser}
+          setManagedUserAlert={setManagedUserAlert}
+          groupId={groupId}
+        />
+      </td>
+    </tr>
   )
 }

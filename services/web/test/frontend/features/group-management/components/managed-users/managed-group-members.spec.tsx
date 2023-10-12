@@ -63,31 +63,31 @@ describe('group members, with managed users', function () {
     cy.get('h1').contains('My Awesome Team')
     cy.get('small').contains('You have added 3 of 10 available members')
 
-    cy.get('ul.managed-users-list').within(() => {
-      cy.get('> li:nth-child(2)').within(() => {
+    cy.get('ul.managed-users-list table > tbody').within(() => {
+      cy.get('tr:nth-child(1)').within(() => {
         cy.contains('john.doe@test.com')
         cy.contains('John Doe')
         cy.contains('15th Jan 2023')
-        cy.get(`[aria-label="Pending invite"]`)
+        cy.get('.sr-only').contains('Pending invite')
 
         cy.get('.badge-new-comment').contains('Pending invite')
         cy.get(`.security-state-invite-pending`).should('exist')
       })
 
-      cy.get('> li:nth-child(3)').within(() => {
+      cy.get('tr:nth-child(2)').within(() => {
         cy.contains('bobby.lapointe@test.com')
         cy.contains('Bobby Lapointe')
         cy.contains('2nd Jan 2023')
         cy.get('.badge-new-comment').should('not.exist')
-        cy.get('i[aria-label="Not managed"]').should('exist')
+        cy.get('.sr-only').contains('Not managed')
       })
 
-      cy.get('> li:nth-child(4)').within(() => {
+      cy.get('tr:nth-child(3)').within(() => {
         cy.contains('claire.jennings@test.com')
         cy.contains('Claire Jennings')
         cy.contains('3rd Jan 2023')
         cy.get('.badge-new-comment').should('not.exist')
-        cy.get('i[aria-label="Managed"]').should('exist')
+        cy.get('.sr-only').contains('Managed')
       })
     })
   })
@@ -106,11 +106,11 @@ describe('group members, with managed users', function () {
     cy.get('.form-control').type('someone.else@test.com')
     cy.get('.add-more-members-form button').click()
 
-    cy.get('ul.managed-users-list').within(() => {
-      cy.get('> li:nth-child(5)').within(() => {
+    cy.get('ul.managed-users-list table > tbody').within(() => {
+      cy.get('tr:nth-child(4)').within(() => {
         cy.contains('someone.else@test.com')
         cy.contains('N/A')
-        cy.get(`[aria-label="Pending invite"]`)
+        cy.get('.sr-only').contains('Pending invite')
         cy.get('.badge-new-comment').contains('Pending invite')
         cy.get(`.security-state-invite-pending`).should('exist')
       })
@@ -133,25 +133,27 @@ describe('group members, with managed users', function () {
   })
 
   it('checks the select all checkbox', function () {
-    cy.get('ul.managed-users-list').within(() => {
-      cy.get('> li:nth-child(2)').within(() => {
+    cy.get('ul.managed-users-list table > tbody').within(() => {
+      cy.get('tr:nth-child(1)').within(() => {
         cy.get('.select-item').should('not.be.checked')
       })
-      cy.get('li:nth-child(3)').within(() => {
+      cy.get('tr:nth-child(2)').within(() => {
         cy.get('.select-item').should('not.be.checked')
       })
     })
 
     cy.get('.select-all').click()
 
-    cy.get('ul.managed-users-list').within(() => {
-      cy.get('> li:nth-child(2)').within(() => {
+    cy.get('ul.managed-users-list table > tbody').within(() => {
+      cy.get('tr:nth-child(1)').within(() => {
         cy.get('.select-item').should('be.checked')
       })
-      cy.get('li:nth-child(3)').within(() => {
+      cy.get('tr:nth-child(2)').within(() => {
         cy.get('.select-item').should('be.checked')
       })
     })
+
+    cy.get('button').contains('Remove from group').click()
   })
 
   it('remove a member', function () {
@@ -159,8 +161,8 @@ describe('group members, with managed users', function () {
       statusCode: 200,
     })
 
-    cy.get('ul.managed-users-list').within(() => {
-      cy.get('> li:nth-child(2)').within(() => {
+    cy.get('ul.managed-users-list table > tbody').within(() => {
+      cy.get('tr:nth-child(1)').within(() => {
         cy.get('.select-item').check()
       })
     })
@@ -168,8 +170,8 @@ describe('group members, with managed users', function () {
     cy.get('button').contains('Remove from group').click()
 
     cy.get('small').contains('You have added 2 of 10 available members')
-    cy.get('ul.managed-users-list').within(() => {
-      cy.get('> li:nth-child(2)').within(() => {
+    cy.get('ul.managed-users-list table > tbody').within(() => {
+      cy.get('tr:nth-child(1)').within(() => {
         cy.contains('bobby.lapointe@test.com')
         cy.contains('Bobby Lapointe')
         cy.contains('2nd Jan 2023')
@@ -182,36 +184,11 @@ describe('group members, with managed users', function () {
       statusCode: 200,
     })
 
-    cy.get('ul.managed-users-list').within(() => {
-      // Select 'Claire Jennings', a managed user
-      cy.get('> li:nth-child(4)').within(() => {
-        cy.get('.select-item').check()
+    cy.get('ul.managed-users-list table > tbody').within(() => {
+      // no checkbox should be shown for 'Claire Jennings', a managed user
+      cy.get('tr:nth-child(3)').within(() => {
+        cy.get('.select-item').should('not.exist')
       })
-    })
-
-    cy.get('.page-header').within(() => {
-      cy.findByRole('button', { name: 'Remove from group' }).should('not.exist')
-    })
-  })
-
-  it('does not show the remove-member button if any of the selected users are managed', function () {
-    cy.intercept('DELETE', `${PATHS.removeMember}/abc123def456`, {
-      statusCode: 200,
-    })
-
-    cy.get('ul.managed-users-list').within(() => {
-      // Select 'Claire Jennings', a managed user
-      cy.get('> li:nth-child(4)').within(() => {
-        cy.get('.select-item').check()
-      })
-      // Select another user
-      cy.get('li:nth-child(3)').within(() => {
-        cy.get('.select-item').check()
-      })
-    })
-
-    cy.get('.page-header').within(() => {
-      cy.findByRole('button', { name: 'Remove from group' }).should('not.exist')
     })
   })
 
@@ -220,8 +197,8 @@ describe('group members, with managed users', function () {
       statusCode: 500,
     })
 
-    cy.get('ul.managed-users-list').within(() => {
-      cy.get('> li:nth-child(2)').within(() => {
+    cy.get('ul.managed-users-list table > tbody').within(() => {
+      cy.get('tr:nth-child(1)').within(() => {
         cy.get('.select-item').check()
       })
     })

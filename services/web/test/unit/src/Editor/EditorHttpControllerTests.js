@@ -131,6 +131,14 @@ describe('EditorHttpController', function () {
       notFound: sinon.stub(),
       unprocessableEntity: sinon.stub(),
     }
+    this.SplitTestHandler = {
+      promises: {
+        getAssignmentForMongoUser: sinon
+          .stub()
+          .resolves({ variant: 'default' }),
+      },
+    }
+    this.UserGetter = { promises: { getUser: sinon.stub().resolves(null, {}) } }
     this.EditorHttpController = SandboxedModule.require(MODULE_PATH, {
       requires: {
         '../Project/ProjectDeleter': this.ProjectDeleter,
@@ -150,6 +158,9 @@ describe('EditorHttpController', function () {
           this.ProjectEntityUpdateHandler,
         '../Docstore/DocstoreManager': this.DocstoreManager,
         '../Errors/HttpErrorHandler': this.HttpErrorHandler,
+        '../SplitTests/SplitTestHandler': this.SplitTestHandler,
+        '../Compile/CompileManager': {},
+        '../User/UserGetter': this.UserGetter,
       },
     })
   })

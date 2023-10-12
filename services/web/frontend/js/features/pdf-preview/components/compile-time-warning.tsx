@@ -6,7 +6,7 @@ import StartFreeTrialButton from '../../../shared/components/start-free-trial-bu
 import { useDetachCompileContext } from '../../../shared/context/detach-compile-context'
 import usePersistedState from '../../../shared/hooks/use-persisted-state'
 
-const ONE_DAY = 24 * 60 * 60 * 24 * 1000
+const TWENTY_FOUR_DAYS = 24 * 60 * 60 * 24 * 1000
 
 function CompileTimeWarning() {
   const { t } = useTranslation()
@@ -17,19 +17,36 @@ function CompileTimeWarning() {
     true
   )
 
-  const { showCompileTimeWarning, setShowCompileTimeWarning } =
-    useDetachCompileContext()
+  const {
+    showCompileTimeWarning,
+    setShowCompileTimeWarning,
+    deliveryLatencies,
+    isProjectOwner,
+  } = useDetachCompileContext()
+
+  useEffect(() => {
+    if (deliveryLatencies && deliveryLatencies.compileTimeServerE2E) {
+      // compile-timeout-20s test
+      if (deliveryLatencies.compileTimeServerE2E > 10000) {
+        eventTracking.sendMB('compile-time-warning-would-display', {
+          time: 10,
+          newCompileTimeout: 'control',
+          isProjectOwner,
+        })
+      }
+    }
+  }, [deliveryLatencies, isProjectOwner])
 
   useEffect(() => {
     if (showCompileTimeWarning) {
       if (
         displayStatus &&
-        Date.now() - displayStatus.lastDisplayTime < ONE_DAY
+        Date.now() - displayStatus.lastDisplayTime < TWENTY_FOUR_DAYS
       ) {
         return
       }
       setDisplayStatus({ lastDisplayTime: Date.now(), dismissed: false })
-      eventTracking.sendMB('compile-time-warning-displayed', {})
+      eventTracking.sendMB('compile-time-warning-displayed', { time: 30 })
     }
   }, [showCompileTimeWarning, displayStatus, setDisplayStatus])
 
@@ -40,6 +57,7 @@ function CompileTimeWarning() {
   const closeWarning = useCallback(() => {
     eventTracking.sendMB('compile-time-warning-dismissed', {
       'time-since-displayed': getTimeSinceDisplayed(),
+      time: 30,
     })
     setShowCompileTimeWarning(false)
     setDisplayStatus(displayStatus => ({ ...displayStatus, dismissed: true }))
@@ -48,6 +66,7 @@ function CompileTimeWarning() {
   const handleUpgradeClick = useCallback(() => {
     eventTracking.sendMB('compile-time-warning-upgrade-click', {
       'time-since-displayed': getTimeSinceDisplayed(),
+      time: 30,
     })
     setShowCompileTimeWarning(false)
     setDisplayStatus(displayStatus => ({ ...displayStatus, dismissed: true }))

@@ -20,6 +20,7 @@ import {
 } from 'react'
 import { Tag } from '../../../../../app/src/Features/Tags/types'
 import {
+  ClonedProject,
   GetProjectsResponseBody,
   Project,
   Sort,
@@ -34,6 +35,7 @@ import {
   isDeletableProject,
   isLeavableProject,
 } from '../util/project'
+import { debugConsole } from '@/utils/debugging'
 
 const MAX_PROJECT_PER_PAGE = 20
 
@@ -68,7 +70,7 @@ const filters: FilterMap = {
 export const UNCATEGORIZED_KEY = 'uncategorized'
 
 export type ProjectListContextValue = {
-  addClonedProjectToViewData: (project: Project) => void
+  addClonedProjectToViewData: (project: ClonedProject) => void
   selectOrUnselectAllProjects: React.Dispatch<React.SetStateAction<boolean>>
   visibleProjects: Project[]
   totalProjectsCount: number
@@ -168,7 +170,7 @@ export function ProjectListProvider({ children }: ProjectListProviderProps) {
         setLoadedProjects(data.projects)
         setTotalProjectsCount(data.totalSize)
       })
-      .catch(error => console.error(error))
+      .catch(debugConsole.error)
       .finally(() => {
         setLoadProgress(100)
       })
@@ -374,7 +376,7 @@ export function ProjectListProvider({ children }: ProjectListProviderProps) {
   )
 
   const addClonedProjectToViewData = useCallback(
-    project => {
+    (project: ClonedProject) => {
       // clone API not using camelCase and does not return all data
 
       const owner = {
@@ -384,7 +386,7 @@ export function ProjectListProvider({ children }: ProjectListProviderProps) {
         lastName: project.owner?.last_name,
       }
 
-      const clonedProject = {
+      const clonedProject: Project = {
         ...project,
         id: project.project_id,
         owner,

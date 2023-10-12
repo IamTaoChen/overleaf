@@ -27,6 +27,7 @@ import {
 } from '../util/recurly-pricing'
 import { isRecurlyLoaded } from '../util/is-recurly-loaded'
 import { SubscriptionDashModalIds } from '../../../../../types/subscription/dashboard/modal-ids'
+import { debugConsole } from '@/utils/debugging'
 
 type SubscriptionDashboardContextValue = {
   groupPlanToChangeToCode: string
@@ -40,6 +41,7 @@ type SubscriptionDashboardContextValue = {
     planCode?: string
   ) => void
   hasDisplayedSubscription: boolean
+  hasValidActiveSubscription: boolean
   institutionMemberships?: Institution[]
   managedGroupSubscriptions: ManagedGroupSubscription[]
   memberGroupSubscriptions: MemberGroupSubscription[]
@@ -132,6 +134,12 @@ export function SubscriptionDashboardProvider({
       managedPublishers?.length > 0
   )
 
+  const hasValidActiveSubscription = Boolean(
+    ['active', 'canceled'].includes(personalSubscription?.recurly?.state) ||
+      institutionMemberships?.length > 0 ||
+      memberGroupSubscriptions?.length > 0
+  )
+
   useEffect(() => {
     if (!isRecurlyLoaded()) {
       setRecurlyLoadError(true)
@@ -159,13 +167,13 @@ export function SubscriptionDashboardProvider({
               plan.displayPrice = priceData.totalForDisplay
             }
           } catch (error) {
-            console.error(error)
+            debugConsole.error(error)
           }
         }
         setPlans(plansWithoutDisplayPrice)
         setQueryingIndividualPlansData(false)
       }
-      fetchPlansDisplayPrices().catch(console.error)
+      fetchPlansDisplayPrices().catch(debugConsole.error)
     }
   }, [personalSubscription, plansWithoutDisplayPrice])
 
@@ -192,7 +200,7 @@ export function SubscriptionDashboardProvider({
             groupPlanToChangeToUsage
           )
         } catch (e) {
-          console.error(e)
+          debugConsole.error(e)
           setGroupPlanToChangeToPriceError(true)
         }
         setQueryingGroupPlanToChangeToPrice(false)
@@ -243,6 +251,7 @@ export function SubscriptionDashboardProvider({
       handleCloseModal,
       handleOpenModal,
       hasDisplayedSubscription,
+      hasValidActiveSubscription,
       institutionMemberships,
       managedGroupSubscriptions,
       memberGroupSubscriptions,
@@ -277,6 +286,7 @@ export function SubscriptionDashboardProvider({
       handleCloseModal,
       handleOpenModal,
       hasDisplayedSubscription,
+      hasValidActiveSubscription,
       institutionMemberships,
       managedGroupSubscriptions,
       memberGroupSubscriptions,

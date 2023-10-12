@@ -30,6 +30,7 @@ import {
   Operation,
 } from '../../../../../types/change'
 import { ChangeManager } from './changes/change-manager'
+import { debugConsole } from '@/utils/debugging'
 
 const clearChangesEffect = StateEffect.define()
 const buildChangesEffect = StateEffect.define()
@@ -192,7 +193,7 @@ const buildChangeDecorations = (currentDoc: CurrentDoc) => {
       decorations.push(...createChangeRange(change, currentDoc))
     } catch (error) {
       // ignore invalid changes
-      console.debug('invalid change position', error)
+      debugConsole.debug('invalid change position', error)
     }
   }
 
@@ -263,6 +264,7 @@ const createChangeRange = (change: Change, currentDoc: CurrentDoc) => {
 
     const changeWidget = Decoration.widget({
       widget: new ChangeDeletedWidget(change as Change<DeleteOperation>),
+      side: 1,
       opType,
       id,
       metadata,
@@ -270,6 +272,7 @@ const createChangeRange = (change: Change, currentDoc: CurrentDoc) => {
 
     const calloutWidget = Decoration.widget({
       widget: new ChangeCalloutWidget(change, opType),
+      side: 1,
       opType,
       id,
       metadata,

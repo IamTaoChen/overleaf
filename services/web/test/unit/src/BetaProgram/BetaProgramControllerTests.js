@@ -21,8 +21,12 @@ describe('BetaProgramController', function () {
         user: this.user,
       },
     }
+    this.SplitTestHandler = {
+      sessionMaintenance: sinon.stub().yields(),
+    }
     this.BetaProgramController = SandboxedModule.require(modulePath, {
       requires: {
+        '../SplitTests/SplitTestHandler': this.SplitTestHandler,
         './BetaProgramHandler': (this.BetaProgramHandler = {
           optIn: sinon.stub(),
           optOut: sinon.stub(),
@@ -68,6 +72,13 @@ describe('BetaProgramController', function () {
       this.BetaProgramHandler.optIn.callCount.should.equal(1)
     })
 
+    it('should invoke the session maintenance', function () {
+      this.BetaProgramController.optIn(this.req, this.res, this.next)
+      this.SplitTestHandler.sessionMaintenance.should.have.been.calledWith(
+        this.req
+      )
+    })
+
     describe('when BetaProgramHandler.opIn produces an error', function () {
       beforeEach(function () {
         this.BetaProgramHandler.optIn.callsArgWith(1, new Error('woops'))
@@ -107,6 +118,13 @@ describe('BetaProgramController', function () {
       this.BetaProgramHandler.optOut.callCount.should.equal(1)
     })
 
+    it('should invoke the session maintenance', function () {
+      this.BetaProgramController.optOut(this.req, this.res, this.next)
+      this.SplitTestHandler.sessionMaintenance.should.have.been.calledWith(
+        this.req
+      )
+    })
+
     describe('when BetaProgramHandler.optOut produces an error', function () {
       beforeEach(function () {
         this.BetaProgramHandler.optOut.callsArgWith(1, new Error('woops'))
@@ -127,7 +145,7 @@ describe('BetaProgramController', function () {
 
   describe('optInPage', function () {
     beforeEach(function () {
-      this.UserGetter.getUser.callsArgWith(1, null, this.user)
+      this.UserGetter.getUser.yields(null, this.user)
     })
 
     it('should render the opt-in page', function () {
@@ -139,7 +157,7 @@ describe('BetaProgramController', function () {
 
     describe('when UserGetter.getUser produces an error', function () {
       beforeEach(function () {
-        this.UserGetter.getUser.callsArgWith(1, new Error('woops'))
+        this.UserGetter.getUser.yields(new Error('woops'))
       })
 
       it('should not render the opt-in page', function () {

@@ -1,10 +1,11 @@
 import { SyntaxNode } from '@lezer/common'
 import { FC, useEffect } from 'react'
-import { CellPosition, RowPosition } from './utils'
+import { CellPosition, ParsedTableData, RowPosition } from './utils'
 import { Toolbar } from './toolbar/toolbar'
 import { Table } from './table'
 import {
   SelectionContextProvider,
+  TableSelection,
   useSelectionContext,
 } from './contexts/selection-context'
 import {
@@ -15,17 +16,25 @@ import { EditorView } from '@codemirror/view'
 import { ErrorBoundary } from 'react-error-boundary'
 import { Alert, Button } from 'react-bootstrap'
 import { EditorSelection } from '@codemirror/state'
-import { CodeMirrorViewContextProvider } from '../codemirror-editor'
+import {
+  CodeMirrorViewContextProvider,
+  useCodeMirrorViewContext,
+} from '../codemirror-editor'
 import { TableProvider } from './contexts/table-context'
 import { TabularProvider, useTabularContext } from './contexts/tabular-context'
 import Icon from '../../../../shared/components/icon'
 import { BorderTheme } from './toolbar/commands'
+import { TableGeneratorHelpModal } from './help-modal'
+import { SplitTestProvider } from '../../../../shared/context/split-test-context'
+import { useTranslation } from 'react-i18next'
 
 export type ColumnDefinition = {
   alignment: 'left' | 'center' | 'right' | 'paragraph'
   borderLeft: number
   borderRight: number
   content: string
+  cellSpacingLeft: string
+  cellSpacingRight: string
 }
 
 export type CellData = {
@@ -74,6 +83,34 @@ export class TableData {
       }
     }
     return this.rows[row].cells.length - 1
+  }
+
+  iterateCells(
+    minRow: number,
+    maxRow: number,
+    minColumn: number,
+    maxColumn: number,
+    callback: (cell: CellData, row: number, column: number) => void
+  ) {
+    for (let row = minRow; row <= maxRow; ++row) {
+      let currentCellOffset = this.getCellBoundaries(row, minColumn).from
+      const minX = this.getCellIndex(row, minColumn)
+      const maxX = this.getCellIndex(row, maxColumn)
+      for (let column = minX; column <= maxX; ++column) {
+        const currentCell = this.rows[row].cells[column]
+        const skip = currentCell.multiColumn?.columnSpan ?? 1
+        callback(currentCell, row, currentCellOffset)
+        currentCellOffset += skip
+      }
+    }
+  }
+
+  iterateSelection(
+    selection: TableSelection,
+    callback: (cell: CellData, row: number, column: number) => void
+  ) {
+    const { minX, maxX, minY, maxY } = selection.normalized()
+    this.iterateCells(minY, maxY, minX, maxX, callback)
   }
 
   getCell(row: number, column: number): CellData {
@@ -155,23 +192,33 @@ export const TableRenderingError: FC<{
   view: EditorView
   codePosition?: number
 }> = ({ view, codePosition }) => {
+  const { t } = useTranslation()
   return (
     <Alert className="table-generator-error">
       <span className="table-generator-error-icon">
         <Icon type="exclamation-circle" />
       </span>
-      <span className="table-generator-error-message">
-        We couldn't render your table
-      </span>
+      <div className="table-generator-error-message">
+        <p className="table-generator-error-message-header">
+          {t('sorry_your_table_cant_be_displayed_at_the_moment')}
+        </p>
+        <p>
+          {t(
+            'this_could_be_because_we_cant_support_some_elements_of_the_table'
+          )}
+        </p>
+      </div>
       {codePosition !== undefined && (
         <Button
+          bsStyle={null}
+          className="btn-secondary table-generator-error-show-code-button"
           onClick={() =>
             view.dispatch({
               selection: EditorSelection.cursor(codePosition),
             })
           }
         >
-          View code
+          {t('view_code')}
         </Button>
       )}
     </Alert>
@@ -182,28 +229,35 @@ export const Tabular: FC<{
   tabularNode: SyntaxNode
   view: EditorView
   tableNode: SyntaxNode | null
-}> = ({ tabularNode, view, tableNode }) => {
+  parsedTableData: ParsedTableData
+  directTableChild?: boolean
+}> = ({ tabularNode, view, tableNode, parsedTableData, directTableChild }) => {
   return (
     <ErrorBoundary
       fallbackRender={() => (
         <TableRenderingError view={view} codePosition={tabularNode.from} />
       )}
     >
-      <CodeMirrorViewContextProvider value={view}>
-        <TabularProvider>
-          <TableProvider
-            tabularNode={tabularNode}
-            view={view}
-            tableNode={tableNode}
-          >
-            <SelectionContextProvider>
-              <EditingContextProvider>
-                <TabularWrapper />
-              </EditingContextProvider>
-            </SelectionContextProvider>
-          </TableProvider>
-        </TabularProvider>
-      </CodeMirrorViewContextProvider>
+      <SplitTestProvider>
+        <CodeMirrorViewContextProvider value={view}>
+          <TabularProvider>
+            <TableProvider
+              tabularNode={tabularNode}
+              tableData={parsedTableData}
+              tableNode={tableNode}
+              directTableChild={directTableChild}
+              view={view}
+            >
+              <SelectionContextProvider>
+                <EditingContextProvider>
+                  <TabularWrapper />
+                </EditingContextProvider>
+              </SelectionContextProvider>
+            </TableProvider>
+            <TableGeneratorHelpModal />
+          </TabularProvider>
+        </CodeMirrorViewContextProvider>
+      </SplitTestProvider>
     </ErrorBoundary>
   )
 }
@@ -212,15 +266,21 @@ const TabularWrapper: FC = () => {
   const { setSelection, selection } = useSelectionContext()
   const { commitCellData, cellData } = useEditingContext()
   const { ref } = useTabularContext()
+  const view = useCodeMirrorViewContext()
   useEffect(() => {
     const listener: (event: MouseEvent) => void = event => {
-      if (!ref.current?.contains(event.target as Node)) {
+      if (
+        !ref.current?.contains(event.target as Node) &&
+        !(event.target as HTMLElement).closest('.table-generator-help-modal')
+      ) {
         if (selection) {
           setSelection(null)
         }
         if (cellData) {
           commitCellData()
         }
+      } else {
+        view.dispatch() // trigger a state update when clicking inside the table
       }
     }
     window.addEventListener('mousedown', listener)
@@ -228,7 +288,7 @@ const TabularWrapper: FC = () => {
     return () => {
       window.removeEventListener('mousedown', listener)
     }
-  }, [cellData, commitCellData, selection, setSelection, ref])
+  }, [cellData, commitCellData, selection, setSelection, ref, view])
   return (
     <div className="table-generator" ref={ref}>
       <Toolbar />

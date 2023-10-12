@@ -29,7 +29,7 @@ block content
 									p
 										strong #{translate("back_to_school_banner_bargain_with_x_percent_off_in_school_or_not", {x: '15'})}
 										br
-										| #{translate("back_to_school_banner_hurry_offer_ends_sep_30")}
+										| #{translate("back_to_school_banner_extended_offer_oct_15")}
 								.notification-action
 									a.btn.btn-sm.btn-default-outline(
 										href="/about/back-to-school-promo-2023"
@@ -54,6 +54,10 @@ block content
 					include ./plans/_cards_controls_tables
 					.row.row-spaced-large.text-centered
 						.col-xs-12
+							p.text-centered
+								strong *
+								| &nbsp;
+								| !{translate("the_free_compile_timeout_will_be_changing_soon_with_faster_servers", {}, [{name: 'a', attrs: {href: '/blog/changes-to-free-compile-timeouts-and-servers', rel: 'noopener noreferrer', target: '_blank'}}])}
 							p.text-centered
 								strong #{translate("all_prices_displayed_are_in_currency", {recommendedCurrency})}
 								| &nbsp;

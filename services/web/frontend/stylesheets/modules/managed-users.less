@@ -1,10 +1,21 @@
-.group-settings-title {
-  font-family: Lato, sans-serif;
+h2.group-settings-title {
+  margin-bottom: 5px;
   font-size: @font-size-large;
+}
+
+h3.group-settings-title {
+  margin-bottom: 0;
+  font-size: @font-size-base;
+}
+
+h2.group-settings-title,
+h3.group-settings-title {
+  font-family: Lato, sans-serif;
   line-height: 28px;
   font-weight: bold;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 0;
 }
 
 .enrollment-invite {
@@ -83,6 +94,42 @@
   }
 }
 
-.managed-users-dropdown-menu {
-  min-width: 200px;
+.group-settings-sso {
+  border-top: 1px solid @gray-lighter;
+  padding-top: 25px;
+  margin-top: 25px;
+
+  .group-settings-sso-enable,
+  .group-settings-sso-configure {
+    margin-top: @margin-md;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.sso-config-info {
+  .sso-config-info-section {
+    margin-bottom: @margin-md;
+  }
+
+  .sso-config-info-label {
+    font-size: @font-size-small;
+    font-weight: bold;
+  }
+
+  .sso-config-info-content {
+    color: @gray-darker;
+    word-break: break-word;
+  }
+
+  .sso-config-info-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: @margin-xs;
+  }
+
+  p {
+    margin-bottom: @margin-xs;
+  }
 }

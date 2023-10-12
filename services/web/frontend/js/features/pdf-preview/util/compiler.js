@@ -4,6 +4,7 @@ import { deleteJSON, postJSON } from '../../../infrastructure/fetch-json'
 import { debounce } from 'lodash'
 import { trackPdfDownload } from './metrics'
 import { enablePdfCaching } from './pdf-caching-flags'
+import { debugConsole } from '@/utils/debugging'
 
 const AUTO_COMPILE_MAX_WAIT = 5000
 // We add a 2 second debounce to sending user changes to server if they aren't
@@ -127,7 +128,7 @@ export default class DocumentCompiler {
       }
       this.setData(data)
     } catch (error) {
-      console.error(error)
+      debugConsole.error(error)
       this.cleanupCompileResult()
       this.setError(error.info?.statusCode === 429 ? 'rate-limited' : 'error')
     } finally {
@@ -184,6 +185,14 @@ export default class DocumentCompiler {
       params.file_line_errors = 'true'
     }
 
+    // temporary override to force the new compile timeout
+    const newCompileTimeoutOverride = new URLSearchParams(
+      window.location.search
+    ).get('force_new_compile_timeout')
+    if (newCompileTimeoutOverride) {
+      params.set('force_new_compile_timeout', newCompileTimeoutOverride)
+    }
+
     return params
   }
 
@@ -198,7 +207,7 @@ export default class DocumentCompiler {
       signal: this.signal,
     })
       .catch(error => {
-        console.error(error)
+        debugConsole.error(error)
         this.setError('error')
       })
       .finally(() => {
@@ -213,7 +222,7 @@ export default class DocumentCompiler {
     return deleteJSON(`/project/${this.projectId}/output?${params}`, {
       signal: this.signal,
     }).catch(error => {
-      console.error(error)
+      debugConsole.error(error)
       this.setError('clear-cache')
     })
   }

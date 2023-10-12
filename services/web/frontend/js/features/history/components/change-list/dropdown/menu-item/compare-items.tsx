@@ -7,15 +7,13 @@ import { ItemSelectionState } from '../../../../utils/history-details'
 
 type CompareItemsProps = {
   updateRange: UpdateRange
-  selected: ItemSelectionState
-  text?: string
+  selectionState: ItemSelectionState
   closeDropdown: () => void
 }
 
 function CompareItems({
   updateRange,
-  selected,
-  text,
+  selectionState,
   closeDropdown,
 }: CompareItemsProps) {
   const { t } = useTranslation()
@@ -27,7 +25,7 @@ function CompareItems({
 
   return (
     <>
-      {selected === 'belowSelected' ? (
+      {selectionState === 'belowSelected' ? (
         <Compare
           comparisonRange={{
             fromV: updateRange.fromV,
@@ -37,16 +35,15 @@ function CompareItems({
           }}
           closeDropdown={closeDropdown}
           toolTipDescription={t('history_compare_from_this_version')}
-          text={text}
           icon={
             <MaterialIcon
               type="align_end"
-              className="material-symbols-rounded history-dropdown-icon p-1"
+              className="history-dropdown-icon pb-1"
             />
           }
         />
       ) : null}
-      {selected === 'aboveSelected' ? (
+      {selectionState === 'aboveSelected' ? (
         <Compare
           comparisonRange={{
             fromV: selRange.fromV,
@@ -56,11 +53,10 @@ function CompareItems({
           }}
           closeDropdown={closeDropdown}
           toolTipDescription={t('history_compare_up_to_this_version')}
-          text={text}
           icon={
             <MaterialIcon
               type="align_start"
-              className="material-symbols-rounded history-dropdown-icon p-1"
+              className="history-dropdown-icon pt-1"
             />
           }
         />

@@ -10,6 +10,8 @@ import { loadMathJax } from '../../../mathjax/load-mathjax'
 import { typesetNodeIntoElement } from '../../extensions/visual/utils/typeset-content'
 import { parser } from '../../lezer-latex/latex.mjs'
 import { useTableContext } from './contexts/table-context'
+import { CellInput, CellInputRef } from './cell-input'
+import { useCodeMirrorViewContext } from '../codemirror-editor'
 
 export const Cell: FC<{
   cellData: CellData
@@ -38,7 +40,8 @@ export const Cell: FC<{
     startEditing,
     commitCellData,
   } = useEditingContext()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<CellInputRef>(null)
+  const view = useCodeMirrorViewContext()
 
   const editing =
     editingCellData?.rowIndex === rowIndex &&
@@ -48,6 +51,9 @@ export const Cell: FC<{
 
   const onMouseDown: MouseEventHandler = useCallback(
     event => {
+      if (editing) {
+        return
+      }
       if (event.button !== 0) {
         return
       }
@@ -65,7 +71,7 @@ export const Cell: FC<{
         )
       })
     },
-    [setDragging, columnIndex, rowIndex, setSelection, table]
+    [setDragging, columnIndex, rowIndex, setSelection, table, editing]
   )
 
   const onMouseUp = useCallback(() => {
@@ -117,19 +123,22 @@ export const Cell: FC<{
   )
 
   useEffect(() => {
-    if (editing) {
-      inputRef.current?.focus()
+    if (editing && inputRef.current) {
+      inputRef.current.focus()
     }
-  }, [editing])
+  }, [editing, cellData.content.length])
 
-  const filterInput = (input: string) => {
+  const filterInput = useCallback((input: string) => {
     // TODO: Are there situations where we don't want to filter the input?
     return input
       .replaceAll(/(^&|[^\\]&)/g, match =>
         match.length === 1 ? '\\&' : `${match[0]}\\&`
       )
+      .replaceAll(/(^%|[^\\]%)/g, match =>
+        match.length === 1 ? '\\%' : `${match[0]}\\%`
+      )
       .replaceAll('\\\\', '')
-  }
+  }, [])
 
   const isFocused =
     selection?.to.row === rowIndex &&
@@ -138,7 +147,7 @@ export const Cell: FC<{
 
   useEffect(() => {
     if (isFocused && !editing && cellRef.current) {
-      cellRef.current.focus()
+      cellRef.current.focus({ preventScroll: true })
     }
   }, [isFocused, editing])
 
@@ -153,26 +162,33 @@ export const Cell: FC<{
         renderDiv.current,
         toDisplay.substring.bind(toDisplay)
       )
-      loadMathJax().then(async MathJax => {
-        if (renderDiv.current) {
-          await MathJax.typesetPromise([renderDiv.current])
-        }
-      })
+      loadMathJax()
+        .then(async MathJax => {
+          if (renderDiv.current) {
+            await MathJax.typesetPromise([renderDiv.current])
+            view.requestMeasure()
+          }
+        })
+        .catch(() => {})
     }
-  }, [cellData.content, editing])
+  }, [cellData.content, editing, view])
 
-  let body = <div ref={renderDiv} />
+  const onInput = useCallback(
+    e => {
+      update(filterInput(e.target.value))
+    },
+    [update, filterInput]
+  )
+
+  let body = <div ref={renderDiv} className="table-generator-cell-render" />
   if (editing) {
     body = (
-      <input
+      <CellInput
         className="table-generator-cell-input"
-        ref={inputRef}
         value={editingCellData.content}
         onBlur={commitCellData}
-        style={{ width: `inherit` }}
-        onChange={e => {
-          update(filterInput(e.target.value))
-        }}
+        onInput={onInput}
+        ref={inputRef}
       />
     )
   }
@@ -217,6 +233,7 @@ export const Cell: FC<{
           inSelection && selection?.bordersLeft(rowIndex, columnIndex, table),
         'selection-edge-right':
           inSelection && selection?.bordersRight(rowIndex, columnIndex, table),
+        editing,
       })}
     >
       {body}

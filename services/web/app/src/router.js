@@ -21,6 +21,7 @@ const UserInfoController = require('./Features/User/UserInfoController')
 const UserController = require('./Features/User/UserController')
 const UserEmailsController = require('./Features/User/UserEmailsController')
 const UserPagesController = require('./Features/User/UserPagesController')
+const TutorialController = require('./Features/Tutorial/TutorialController')
 const DocumentController = require('./Features/Documents/DocumentController')
 const CompileManager = require('./Features/Compile/CompileManager')
 const CompileController = require('./Features/Compile/CompileController')
@@ -96,10 +97,6 @@ const rateLimiters = {
   }),
   confirmEmail: new RateLimiter('confirm-email', {
     points: 10,
-    duration: 60,
-  }),
-  confirmUniversityDomain: new RateLimiter('confirm-university-domain', {
-    points: 1,
     duration: 60,
   }),
   createProject: new RateLimiter('create-project', {
@@ -186,7 +183,7 @@ const rateLimiters = {
     duration: 60,
   }),
   resendConfirmation: new RateLimiter('resend-confirmation', {
-    points: 10,
+    points: 1,
     duration: 60,
   }),
   sendChatMessage: new RateLimiter('send-chat-message', {
@@ -432,6 +429,12 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     '/user/tpds/queues',
     AuthenticationController.requireLogin(),
     TpdsController.getQueues
+  )
+
+  webRouter.post(
+    '/tutorial/:tutorialKey/complete',
+    AuthenticationController.requireLogin(),
+    TutorialController.completeTutorial
   )
 
   webRouter.get(
@@ -1141,7 +1144,6 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
   )
   publicApiRouter.post(
     '/api/institutions/confirm_university_domain',
-    RateLimiterMiddleware.rateLimit(rateLimiters.confirmUniversityDomain),
     AuthenticationController.requirePrivateApiAuth(),
     InstitutionsController.confirmDomain
   )

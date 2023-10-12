@@ -10,6 +10,7 @@ import useSelectColor from '../../hooks/use-select-color'
 import { createTag } from '../../util/api'
 import { MAX_TAG_LENGTH } from '../../util/tag'
 import { ColorPicker } from '../color-picker/color-picker'
+import { debugConsole } from '@/utils/debugging'
 
 type CreateTagModalProps = {
   id: string
@@ -39,7 +40,7 @@ export default function CreateTagModal({
     if (tagName) {
       runAsync(createTag(tagName, selectedColor))
         .then(tag => onCreate(tag))
-        .catch(console.error)
+        .catch(debugConsole.error)
     }
   }, [runAsync, tagName, selectedColor, onCreate])
 
@@ -76,14 +77,15 @@ export default function CreateTagModal({
       <Modal.Body>
         <Form name="createTagForm" onSubmit={handleSubmit}>
           <FormGroup>
+            <label htmlFor="new-tag-form-name">{t('new_tag_name')}</label>
             <input
-              ref={autoFocusedRef}
               className="form-control"
-              type="text"
-              placeholder={t('new_tag_name')}
+              id="new-tag-form-name"
               name="new-tag-form-name"
-              required
               onChange={e => setTagName(e.target.value)}
+              ref={autoFocusedRef}
+              required
+              type="text"
             />
           </FormGroup>
           <FormGroup aria-hidden="true">
