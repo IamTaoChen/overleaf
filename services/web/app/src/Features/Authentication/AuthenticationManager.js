@@ -208,24 +208,86 @@ const AuthenticationManager = {
       })
     }
 
-        Metrics.inc('try-validate-password')
+    Metrics.inc('try-validate-password')
 
-        let allowAnyChars, min, max
-        if (Settings.passwordStrengthOptions) {
-            allowAnyChars = Settings.passwordStrengthOptions.allowAnyChars === true
-            if (Settings.passwordStrengthOptions.length) {
-                min = Settings.passwordStrengthOptions.length.min
-                max = Settings.passwordStrengthOptions.length.max
-            }
-        }
-        allowAnyChars = !!allowAnyChars
-        min = min || 8
-        max = max || 72
+    let allowAnyChars, min, max
+    if (Settings.passwordStrengthOptions) {
+      allowAnyChars = Settings.passwordStrengthOptions.allowAnyChars === true
+      if (Settings.passwordStrengthOptions.length) {
+        min = Settings.passwordStrengthOptions.length.min
+        max = Settings.passwordStrengthOptions.length.max
+      }
+    }
+    allowAnyChars = !!allowAnyChars
+    min = min || 8
+    max = max || 72
 
-        // we don't support passwords > 72 characters in length, because bcrypt truncates them
-        if (max > 72) {
-            max = 72
+    // we don't support passwords > 72 characters in length, because bcrypt truncates them
+    if (max > 72) {
+      max = 72
+    }
+
+    if (password.length < min) {
+      return new InvalidPasswordError({
+        message: 'password is too short',
+        info: { code: 'too_short' },
+      })
+    }
+    if (password.length > max) {
+      return new InvalidPasswordError({
+        message: 'password is too long',
+        info: { code: 'too_long' },
+      })
+    }
+    const passwordLengthError = _validatePasswordNotTooLong(password)
+    if (passwordLengthError) {
+      return passwordLengthError
+    }
+    if (
+      !allowAnyChars &&
+      !AuthenticationManager._passwordCharactersAreValid(password)
+    ) {
+      return new InvalidPasswordError({
+        message: 'password contains an invalid character',
+        info: { code: 'invalid_character' },
+      })
+    }
+    if (typeof email === 'string' && email !== '') {
+      const startOfEmail = email.split('@')[0]
+      if (
+        password.includes(email) ||
+        password.includes(startOfEmail) ||
+        email.includes(password)
+      ) {
+        return new InvalidPasswordError({
+          message: 'password contains part of email address',
+          info: { code: 'contains_email' },
+        })
+      }
+      try {
+        const passwordTooSimilarError =
+          AuthenticationManager._validatePasswordNotTooSimilar(password, email)
+        if (passwordTooSimilarError) {
+          Metrics.inc('password-too-similar-to-email')
+          return new InvalidPasswordError({
+            message: 'password is too similar to email address',
+            info: { code: 'too_similar' },
+          })
         }
+      } catch (error) {
+        logger.error(
+          { error },
+          'error while checking password similarity to email'
+        )
+      }
+      // TODO: remove this check once the password-too-similar checks are active?
+    }
+    return null
+  },
+
+  setUserPassword(user, password, callback) {
+    AuthenticationManager.setUserPasswordInV2(user, password, callback)
+  },
 
   checkRounds(user, hashedPassword, password, callback) {
     // Temporarily disable this function, TODO: re-enable this
@@ -262,33 +324,6 @@ const AuthenticationManager = {
     })
   },
 
-    checkRounds(user, hashedPassword, password, callback) {
-        // Temporarily disable this function, TODO: re-enable this
-        if (Settings.security.disableBcryptRoundsUpgrades) {
-            return callback()
-        }
-        // check current number of rounds and rehash if necessary
-        const currentRounds = bcrypt.getRounds(hashedPassword)
-        if (currentRounds < BCRYPT_ROUNDS) {
-            AuthenticationManager._setUserPasswordInMongo(user, password, callback)
-        } else {
-            callback()
-        }
-    },
-
-    hashPassword(password, callback) {
-        // Double-check the size to avoid truncating in bcrypt.
-        const error = _validatePasswordNotTooLong(password)
-        if (error) {
-            return callback(error)
-        }
-        bcrypt.genSalt(BCRYPT_ROUNDS, BCRYPT_MINOR_VERSION, function (error, salt) {
-            if (error) {
-                return callback(error)
-            }
-            bcrypt.hash(password, salt, callback)
-        })
-    },
 
     setUserPasswordInV2(user, password, callback) {
         if (!user || !user.email || !user._id) {
