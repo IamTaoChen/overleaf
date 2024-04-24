@@ -215,8 +215,15 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     CaptchaMiddleware.canSkipCaptcha
   )
 
-  webRouter.get('/login', UserPagesController.loginPage)
-  AuthenticationController.addEndpointToLoginWhitelist('/login')
+//   webRouter.get('/login', UserPagesController.loginPage)
+//   AuthenticationController.addEndpointToLoginWhitelist('/login')
+
+    webRouter.get('/login/page', UserPagesController.loginPage)
+    AuthenticationController.addEndpointToLoginWhitelist('/login/page')
+
+    webRouter.get('/login', AuthenticationController.oidcRedirect)
+    AuthenticationController.addEndpointToLoginWhitelist('/login')
+
 
   webRouter.post(
     '/login',
@@ -1364,6 +1371,11 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     RateLimiterMiddleware.rateLimit(rateLimiters.grantTokenAccessReadOnly),
     TokenAccessController.grantTokenAccessReadOnly
   )
+
+  webRouter.get('/auth/oidc/redirect', AuthenticationController.oidcRedirect)
+  webRouter.get('/auth/oidc/callback', AuthenticationController.oidcCallback)
+  AuthenticationController.addEndpointToLoginWhitelist('/auth/oidc/redirect')
+  AuthenticationController.addEndpointToLoginWhitelist('/auth/oidc/callback')
 
   webRouter.get('/unsupported-browser', renderUnsupportedBrowserPage)
 

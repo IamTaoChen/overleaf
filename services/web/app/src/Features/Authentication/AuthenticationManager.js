@@ -4,11 +4,11 @@ const { db, ObjectId } = require('../../infrastructure/mongodb')
 const bcrypt = require('bcrypt')
 const EmailHelper = require('../Helpers/EmailHelper')
 const {
-  InvalidEmailError,
-  InvalidPasswordError,
-  ParallelLoginError,
-  PasswordMustBeDifferentError,
-  PasswordReusedError,
+    InvalidEmailError,
+    InvalidPasswordError,
+    ParallelLoginError,
+    PasswordMustBeDifferentError,
+    PasswordReusedError,
 } = require('./AuthenticationErrors')
 const {
   callbackify,
@@ -20,17 +20,18 @@ const logger = require('@overleaf/logger')
 const DiffHelper = require('../Helpers/DiffHelper')
 const Metrics = require('@overleaf/metrics')
 
+const UserGetter = require("../User/UserGetter")
 const BCRYPT_ROUNDS = Settings.security.bcryptRounds || 12
 const BCRYPT_MINOR_VERSION = Settings.security.bcryptMinorVersion || 'a'
 const MAX_SIMILARITY = 0.7
 
 function _exceedsMaximumLengthRatio(password, maxSimilarity, value) {
-  const passwordLength = password.length
-  const lengthBoundSimilarity = (maxSimilarity / 2) * passwordLength
-  const valueLength = value.length
-  return (
-    passwordLength >= 10 * valueLength && valueLength < lengthBoundSimilarity
-  )
+    const passwordLength = password.length
+    const lengthBoundSimilarity = (maxSimilarity / 2) * passwordLength
+    const valueLength = value.length
+    return (
+        passwordLength >= 10 * valueLength && valueLength < lengthBoundSimilarity
+    )
 }
 
 const _checkWriteResult = function (result) {
@@ -39,22 +40,22 @@ const _checkWriteResult = function (result) {
 }
 
 function _validatePasswordNotTooLong(password) {
-  // bcrypt has a hard limit of 72 characters.
-  if (password.length > 72) {
-    return new InvalidPasswordError({
-      message: 'password is too long',
-      info: { code: 'too_long' },
-    })
-  }
-  return null
+    // bcrypt has a hard limit of 72 characters.
+    if (password.length > 72) {
+        return new InvalidPasswordError({
+            message: 'password is too long',
+            info: { code: 'too_long' },
+        })
+    }
+    return null
 }
 
 function _metricsForSuccessfulPasswordMatch(password) {
-  const validationResult = AuthenticationManager.validatePassword(password)
-  const status =
-    validationResult === null ? 'success' : validationResult?.info?.code
-  Metrics.inc('check-password', { status })
-  return null
+    const validationResult = AuthenticationManager.validatePassword(password)
+    const status =
+        validationResult === null ? 'success' : validationResult?.info?.code
+    Metrics.inc('check-password', { status })
+    return null
 }
 
 const AuthenticationManager = {
@@ -177,13 +178,13 @@ const AuthenticationManager = {
     return { user, isPasswordReused }
   },
 
-  validateEmail(email) {
-    const parsed = EmailHelper.parseEmail(email)
-    if (!parsed) {
-      return new InvalidEmailError({ message: 'email not valid' })
-    }
-    return null
-  },
+    validateEmail(email) {
+        const parsed = EmailHelper.parseEmail(email)
+        if (!parsed) {
+            return new InvalidEmailError({ message: 'email not valid' })
+        }
+        return null
+    },
 
   // validates a password based on a similar set of rules previously used by `passfield.js` on the frontend
   // note that `passfield.js` enforced more rules than this, but these are the most commonly set.
@@ -361,106 +362,95 @@ const AuthenticationManager = {
     return _checkWriteResult(result)
   },
 
-  _passwordCharactersAreValid(password) {
-    let digits, letters, lettersUp, symbols
-    if (
-      Settings.passwordStrengthOptions &&
-      Settings.passwordStrengthOptions.chars
-    ) {
-      digits = Settings.passwordStrengthOptions.chars.digits
-      letters = Settings.passwordStrengthOptions.chars.letters
-      lettersUp = Settings.passwordStrengthOptions.chars.letters_up
-      symbols = Settings.passwordStrengthOptions.chars.symbols
-    }
-    digits = digits || '1234567890'
-    letters = letters || 'abcdefghijklmnopqrstuvwxyz'
-    lettersUp = lettersUp || 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-    symbols = symbols || '@#$%^&*()-_=+[]{};:<>/?!£€.,'
-
-    for (let charIndex = 0; charIndex <= password.length - 1; charIndex++) {
-      if (
-        digits.indexOf(password[charIndex]) === -1 &&
-        letters.indexOf(password[charIndex]) === -1 &&
-        lettersUp.indexOf(password[charIndex]) === -1 &&
-        symbols.indexOf(password[charIndex]) === -1
-      ) {
-        return false
-      }
-    }
-    return true
-  },
-
-  /**
-   * Check if the password is similar to (parts of) the email address.
-   * For now, this merely sends a metric when the password and
-   * email address are deemed to be too similar to each other.
-   * Later we will reject passwords that fail this check.
-   *
-   * This logic was borrowed from the django project:
-   * https://github.com/django/django/blob/fa3afc5d86f1f040922cca2029d6a34301597a70/django/contrib/auth/password_validation.py#L159-L214
-   */
-  _validatePasswordNotTooSimilar(password, email) {
-    password = password.toLowerCase()
-    email = email.toLowerCase()
-    const stringsToCheck = [email]
-      .concat(email.split(/\W+/))
-      .concat(email.split(/@/))
-    for (const emailPart of stringsToCheck) {
-      if (!_exceedsMaximumLengthRatio(password, MAX_SIMILARITY, emailPart)) {
-        const similarity = DiffHelper.stringSimilarity(password, emailPart)
-        if (similarity > MAX_SIMILARITY) {
-          logger.warn(
-            { email, emailPart, similarity, maxSimilarity: MAX_SIMILARITY },
-            'Password too similar to email'
-          )
-          return new Error('password is too similar to email')
+        for (let charIndex = 0; charIndex <= password.length - 1; charIndex++) {
+            if (
+                digits.indexOf(password[charIndex]) === -1 &&
+                letters.indexOf(password[charIndex]) === -1 &&
+                lettersUp.indexOf(password[charIndex]) === -1 &&
+                symbols.indexOf(password[charIndex]) === -1
+            ) {
+                return false
+            }
         }
-      }
-    }
-  },
+        return true
+    },
 
-  getMessageForInvalidPasswordError(error, req) {
-    const errorCode = error?.info?.code
-    const message = {
-      type: 'error',
-    }
-    switch (errorCode) {
-      case 'not_set':
-        message.key = 'password-not-set'
-        message.text = req.i18n.translate('invalid_password_not_set')
-        break
-      case 'invalid_character':
-        message.key = 'password-invalid-character'
-        message.text = req.i18n.translate('invalid_password_invalid_character')
-        break
-      case 'contains_email':
-        message.key = 'password-contains-email'
-        message.text = req.i18n.translate('invalid_password_contains_email')
-        break
-      case 'too_similar':
-        message.key = 'password-too-similar'
-        message.text = req.i18n.translate('invalid_password_too_similar')
-        break
-      case 'too_short':
-        message.key = 'password-too-short'
-        message.text = req.i18n.translate('invalid_password_too_short', {
-          minLength: Settings.passwordStrengthOptions?.length?.min || 8,
-        })
-        break
-      case 'too_long':
-        message.key = 'password-too-long'
-        message.text = req.i18n.translate('invalid_password_too_long', {
-          maxLength: Settings.passwordStrengthOptions?.length?.max || 72,
-        })
-        break
-      default:
-        logger.error({ err: error }, 'Unknown password validation error code')
-        message.text = req.i18n.translate('invalid_password')
-        break
-    }
-    return message
-  },
-}
+    /**
+     * Check if the password is similar to (parts of) the email address.
+     * For now, this merely sends a metric when the password and
+     * email address are deemed to be too similar to each other.
+     * Later we will reject passwords that fail this check.
+     *
+     * This logic was borrowed from the django project:
+     * https://github.com/django/django/blob/fa3afc5d86f1f040922cca2029d6a34301597a70/django/contrib/auth/password_validation.py#L159-L214
+     */
+    _validatePasswordNotTooSimilar(password, email) {
+        password = password.toLowerCase()
+        email = email.toLowerCase()
+        const stringsToCheck = [email]
+            .concat(email.split(/\W+/))
+            .concat(email.split(/@/))
+        for (const emailPart of stringsToCheck) {
+            if (!_exceedsMaximumLengthRatio(password, MAX_SIMILARITY, emailPart)) {
+                const similarity = DiffHelper.stringSimilarity(password, emailPart)
+                if (similarity > MAX_SIMILARITY) {
+                    logger.warn(
+                        { email, emailPart, similarity, maxSimilarity: MAX_SIMILARITY },
+                        'Password too similar to email'
+                    )
+                    return new Error('password is too similar to email')
+                }
+            }
+        }
+    },// ####################################################################################
+    // 随机生成单点登录的用户的密码
+    createPwdForSSOUser() {
+        let pwdSpace = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz0123456789!@#$%^&*()[]<>";
+        let pwdSpaceLen = pwdSpace.length;
+        let result = "";
+        for (i = 0; i < 32; i++) {
+            result += pwdSpace.charAt(Math.floor(Math.random() * pwdSpaceLen));
+        }
+        return result;
+    },
+    // ####################################################################################
+    // Common SSO Code
+    // ####################################################################################
+    createUserIfNotExist(oauth_user, callback) {
+        // if `oauth_user` has email info
+        const oauth_email_exist = process.env.SHARELATEX_OIDC_USER_PROFILE_CONTAIN_EMAIL || 'false';
+        let oauth_new_user_email = "";
+
+        if (oauth_email_exist === 'false') {
+            oauth_new_user_email = oauth_user[process.env.SHARELATEX_OIDC_USER_EMAIL_NAME_IDENTIFIER]
+                + "@" + process.env.SHARELATEX_OIDC_USER_EMAIL_DOMAIN
+        }
+        else {
+            oauth_new_user_email = oauth_user[process.env.SHARELATEX_OIDC_USER_EMAIL_NAME_IDENTIFIER];
+        }
+
+        const query = {
+            email: oauth_new_user_email
+        };
+        let parsedEmail = EmailHelper.parseEmail(query.email)
+        UserGetter.getUserByAnyEmail(parsedEmail, (error, user) => {
+            if ((!user || !user.hashedPassword)) {
+                // get passwd
+                let pass = this.createPwdForSSOUser();
+                const userRegHand = require('../User/UserRegistrationHandler.js')
+                userRegHand.registerNewUser({
+                    email: query.email,
+                    first_name: oauth_user.name,
+                    last_name: "",
+                    password: pass
+                },
+                    function (error, user) {
+                        if (error) {
+                            return callback(error, null);
+                        }
+                        user.admin = false
+                        user.emails[0].confirmedAt = Date.now()
+                        user.save()
 
 module.exports = {
   _validatePasswordNotTooSimilar:
