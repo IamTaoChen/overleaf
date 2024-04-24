@@ -34,12 +34,12 @@ const { Issuer, generators } = require('openid-client')
 
 let client;
 
-Issuer.discover(process.env.SHARELATEX_OIDC_ISSUER)
+Issuer.discover(process.env.OVERLEAF_OIDC_ISSUER)
   .then(issuer => {
     client = new issuer.Client({
-      client_id: process.env.SHARELATEX_OIDC_CLIENT_ID,
-      client_secret: process.env.SHARELATEX_OIDC_CLIENT_SECRET,
-      redirect_uris: [process.env.SHARELATEX_OIDC_REDIRECT_URL],
+      client_id: process.env.OVERLEAF_OIDC_CLIENT_ID,
+      client_secret: process.env.OVERLEAF_OIDC_CLIENT_SECRET,
+      redirect_uris: [process.env.OVERLEAF_OIDC_REDIRECT_URL],
       response_types: ['code'],
     });
   })
@@ -644,15 +644,16 @@ const AuthenticationController = {
     }
   },
 
+
   oidcRedirect(req, res, next) {
-    const oidc_allowed = process.env.SHARELATEX_OIDC_ENABLED || 'false';
+    const oidc_allowed = process.env.OVERLEAF_OIDC_ENABLED || 'false';
     if (oidc_allowed === 'true') {
       const code_verifier = generators.codeVerifier();
       const code_challenge = generators.codeChallenge(code_verifier);
       req.session.code_verifier = code_verifier;
 
       const authorizationUrl = client.authorizationUrl({
-        scope: process.env.SHARELATEX_OIDC_SCOPE,
+        scope: process.env.OVERLEAF_OIDC_SCOPE,
         code_challenge,
         code_challenge_method: 'S256',
       });
@@ -663,7 +664,7 @@ const AuthenticationController = {
     }
   },
   oidcCallback(req, res, next) {
-    const oidc_allowed = process.env.SHARELATEX_OIDC_ENABLED || 'false';
+    const oidc_allowed = process.env.OVERLEAF_OIDC_ENABLED || 'false';
     if (oidc_allowed === 'false') {
       res.sendStatus(404);
       return;
@@ -671,14 +672,14 @@ const AuthenticationController = {
 
     client
       .callback(
-        process.env.SHARELATEX_OIDC_REDIRECT_URL,
+        process.env.OVERLEAF_OIDC_REDIRECT_URL,
         req.query,
         {
           code_verifier: req.session.code_verifier,
         },
         {
           exchangeBody: {
-            scope: process.env.SHARELATEX_OIDC_SCOPE,
+            scope: process.env.OVERLEAF_OIDC_SCOPE,
           },
         }
       )
