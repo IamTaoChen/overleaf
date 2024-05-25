@@ -1,5 +1,11 @@
-import { TrackingPropsRawData } from 'overleaf-editor-core/types/lib/types'
+import {
+  TrackingPropsRawData,
+  ClearTrackingPropsRawData,
+} from 'overleaf-editor-core/lib/types'
 
+/**
+ * An update coming from the editor
+ */
 export type Update = {
   doc: string
   op: Op[]
@@ -37,6 +43,9 @@ export type CommentOp = {
   u?: boolean
 }
 
+/**
+ * Ranges record on a document
+ */
 export type Ranges = {
   comments?: Comment[]
   changes?: TrackedChange[]
@@ -53,14 +62,35 @@ export type Comment = {
 
 export type TrackedChange = {
   id: string
-  op: Op
+  op: InsertOp | DeleteOp
   metadata: {
     user_id: string
     ts: string
   }
 }
 
-export type HistoryOp = HistoryInsertOp | HistoryDeleteOp | HistoryCommentOp | HistoryRetainOp
+/**
+ * Updates sent to project-history
+ */
+export type HistoryUpdate = {
+  op: HistoryOp[]
+  doc: string
+  v?: number
+  meta?: {
+    pathname?: string
+    doc_length?: number
+    history_doc_length?: number
+    tc?: boolean
+    user_id?: string
+  }
+  projectHistoryId?: string
+}
+
+export type HistoryOp =
+  | HistoryInsertOp
+  | HistoryDeleteOp
+  | HistoryCommentOp
+  | HistoryRetainOp
 
 export type HistoryInsertOp = InsertOp & {
   commentIds?: string[]
@@ -70,7 +100,7 @@ export type HistoryInsertOp = InsertOp & {
 
 export type HistoryRetainOp = RetainOp & {
   hpos?: number
-  tracking?: TrackingPropsRawData
+  tracking?: TrackingPropsRawData | ClearTrackingPropsRawData
 }
 
 export type HistoryDeleteOp = DeleteOp & {
@@ -89,16 +119,13 @@ export type HistoryCommentOp = CommentOp & {
   hlen?: number
 }
 
-export type HistoryUpdate = {
-  op: HistoryOp[]
-  doc: string
-  v?: number
-  meta?: {
-    pathname?: string
-    doc_length?: number
-    history_doc_length?: number
-    tc?: boolean
-    user_id?: string
-  }
-  projectHistoryId?: string
+export type HistoryRanges = {
+  comments?: HistoryComment[]
+  changes?: HistoryTrackedChange[]
+}
+
+export type HistoryComment = Comment & { op: HistoryCommentOp }
+
+export type HistoryTrackedChange = TrackedChange & {
+  op: HistoryInsertOp | HistoryDeleteOp
 }

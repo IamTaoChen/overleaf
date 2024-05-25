@@ -415,8 +415,9 @@ describe('<UserNotifications />', function () {
           await fetchMock.flush(true)
           fetchMock.delete(`/notifications/${notificationGroupInvite._id}`, 200)
           screen.getByRole('alert')
+          screen.getByText('inviter@overleaf.com')
           screen.getByText(
-            /inviter@overleaf.com has invited you to join a group subscription on Overleaf/
+            /has invited you to join a group subscription on Overleaf/
           )
           screen.getByRole('button', { name: 'Join now' })
           screen.getByRole('button', { name: /close/i })
@@ -698,6 +699,7 @@ describe('<UserNotifications />', function () {
       assignStub = sinon.stub()
       this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
         assign: assignStub,
+        replace: sinon.stub(),
         reload: sinon.stub(),
       })
       fetchMock.reset()
@@ -996,7 +998,12 @@ describe('<UserNotifications />', function () {
       it('dismisses the banner when the close button is clicked', function () {
         renderWithinProjectListProvider(UserNotifications)
         screen.getByRole('link', { name: /Writefull/ })
-        const closeButton = screen.getByRole('button', { name: 'Close' })
+        const WritefullPromoBanner = screen.getByTestId(
+          'writefull-premium-promo-banner'
+        )
+        const closeButton = within(WritefullPromoBanner).getByRole('button', {
+          name: 'Close',
+        })
         fireEvent.click(closeButton)
         expect(screen.queryByRole('link', { name: /Writefull/ })).to.be.null
         expect(localStorage.getItem('has_dismissed_writefull_promo_banner')).to

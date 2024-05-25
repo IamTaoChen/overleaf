@@ -11,7 +11,6 @@ const basicAuth = require('basic-auth')
 const tsscmp = require('tsscmp')
 const UserHandler = require('../User/UserHandler')
 const UserSessionsManager = require('../User/UserSessionsManager')
-const SessionStoreManager = require('../../infrastructure/SessionStoreManager')
 const Analytics = require('../Analytics/AnalyticsManager')
 const passport = require('passport')
 const NotificationsBuilder = require('../Notifications/NotificationsBuilder')
@@ -425,30 +424,6 @@ const AuthenticationController = {
     return expressify(middleware)
   },
 
-  validateUserSession: function () {
-    // Middleware to check that the user's session is still good on key actions,
-    // such as opening a a project. Could be used to check that session has not
-    // exceeded a maximum lifetime (req.session.session_created), or for session
-    // hijacking checks (e.g. change of ip address, req.session.ip_address). For
-    // now, just check that the session has been loaded from the session store
-    // correctly.
-    return function (req, res, next) {
-      // check that the session store is returning valid results
-      if (req.session && !SessionStoreManager.hasValidationToken(req)) {
-        // force user to update session
-        req.session.regenerate(() => {
-          // need to destroy the existing session and generate a new one
-          // otherwise they will already be logged in when they are redirected
-          // to the login page
-          if (acceptsJson(req)) return send401WithChallenge(res)
-          AuthenticationController._redirectToLoginOrRegisterPage(req, res)
-        })
-      } else {
-        next()
-      }
-    }
-  },
-
   _globalLoginWhitelist: [],
   addEndpointToLoginWhitelist(endpoint) {
     return AuthenticationController._globalLoginWhitelist.push(endpoint)
@@ -563,7 +538,7 @@ const AuthenticationController = {
   _redirectToLoginOrRegisterPage(req, res) {
     if (
       req.query.zipUrl != null ||
-      req.query.project_name != null ||
+      req.session.sharedProjectData ||
       req.path === '/user/subscription/new'
     ) {
       AuthenticationController._redirectToRegisterPage(req, res)

@@ -1,10 +1,12 @@
+include ./_mixins/foot_scripts
+
 doctype html
 html(
 	lang=(currentLngCode || 'en')
 	class=(fixedSizeDocument ? 'fixed-size-document' : undefined)
 )
 	- metadata = metadata || {}
-	- bootstrap5EnabledPage = false
+	- let bootstrap5EnabledPage = false
 
 	block entrypointVar
 
@@ -13,7 +15,7 @@ html(
 	head
 		include ./_metadata.pug
 			
-		- var bootstrapVersion = bootstrap5EnabledPage && splitTestVariants['bootstrap-5'] === 'enabled' ? 5 : 3
+		- const bootstrapVersion = bootstrap5EnabledPage && splitTestVariants['bootstrap-5'] === 'enabled' ? 5 : 3
 
 		//- Stylesheet
 		link(rel='stylesheet', href=buildCssPath(getCssThemeModifier(userSettings, brandVariation), bootstrapVersion), id="main-stylesheet")
@@ -82,12 +84,8 @@ html(
 			div#dev-toolbar
 
 	block foot-scripts
-		each file in entrypointScripts(entrypoint)
-			script(type="text/javascript", nonce=scriptNonce, src=file, defer=deferScripts)
-		if (settings.splitTest.devToolbar.enabled)
-			each file in entrypointScripts("devToolbar")
-				script(type="text/javascript", nonce=scriptNonce, src=file, defer=deferScripts)
-	
+		+foot-scripts
+
 	script(type="text/javascript", nonce=scriptNonce).
 		window.addEventListener('DOMContentLoaded', function() {
 			//- Look for bundle

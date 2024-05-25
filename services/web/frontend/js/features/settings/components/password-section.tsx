@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { ControlLabel, FormControl, FormGroup } from 'react-bootstrap'
 import { Trans, useTranslation } from 'react-i18next'
 import {
   getUserFacingMessage,
@@ -10,8 +9,12 @@ import getMeta from '../../../utils/meta'
 import { ExposedSettings } from '../../../../../types/exposed-settings'
 import { PasswordStrengthOptions } from '../../../../../types/password-strength-options'
 import useAsync from '../../../shared/hooks/use-async'
-import ButtonWrapper from '@/features/ui/components/bootstrap-5/wrappers/button-wrapper'
-import NotificationWrapper from '@/features/ui/components/bootstrap-5/notification-wrapper'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import OLNotification from '@/features/ui/components/ol/ol-notification'
+import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
+import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
+import OLFormControl from '@/features/ui/components/ol/ol-form-control'
+import OLFormText from '@/features/ui/components/ol/ol-form-text'
 
 type PasswordUpdateResult = {
   message?: {
@@ -156,13 +159,13 @@ function PasswordForm() {
         autoComplete="new-password"
       />
       {isSuccess && data?.message?.text ? (
-        <FormGroup>
-          <NotificationWrapper type="success" content={data.message.text} />
-        </FormGroup>
+        <OLFormGroup>
+          <OLNotification type="success" content={data.message.text} />
+        </OLFormGroup>
       ) : null}
       {isError ? (
-        <FormGroup>
-          <NotificationWrapper
+        <OLFormGroup>
+          <OLNotification
             type="error"
             content={
               getErrorMessageKey(error) === 'password-must-be-strong' ? (
@@ -195,9 +198,9 @@ function PasswordForm() {
               )
             }
           />
-        </FormGroup>
+        </OLFormGroup>
       ) : null}
-      <ButtonWrapper
+      <OLButton
         form="password-change-form"
         type="submit"
         variant="primary"
@@ -208,7 +211,7 @@ function PasswordForm() {
         }}
       >
         {t('change')}
-      </ButtonWrapper>
+      </OLButton>
     </form>
   )
 }
@@ -235,25 +238,26 @@ function PasswordFormGroup({
   const [validationMessage, setValidationMessage] = useState('')
   const [hadInteraction, setHadInteraction] = useState(false)
 
-  const handleInvalid = (
-    event: React.InvalidEvent<HTMLInputElement & FormControl>
-  ) => {
+  const handleInvalid = (event: React.InvalidEvent<HTMLInputElement>) => {
     event.preventDefault()
   }
 
   const handleChangeAndValidity = (
-    event: React.ChangeEvent<HTMLInputElement & FormControl>
+    event: React.ChangeEvent<HTMLInputElement>
   ) => {
     handleChange(event)
     setHadInteraction(true)
     setValidationMessage(event.target.validationMessage)
   }
 
+  const isInvalid = Boolean(
+    hadInteraction && (parentValidationMessage || validationMessage)
+  )
+
   return (
-    <FormGroup>
-      <ControlLabel htmlFor={id}>{label}</ControlLabel>
-      <FormControl
-        id={id}
+    <OLFormGroup controlId={id}>
+      <OLFormLabel>{label}</OLFormLabel>
+      <OLFormControl
         type="password"
         placeholder="*********"
         autoComplete={autoComplete}
@@ -263,13 +267,14 @@ function PasswordFormGroup({
         onInvalid={handleInvalid}
         required={hadInteraction}
         minLength={minLength}
+        isInvalid={isInvalid}
       />
-      {hadInteraction && (parentValidationMessage || validationMessage) ? (
-        <span className="small text-danger">
+      {isInvalid && (
+        <OLFormText isError>
           {parentValidationMessage || validationMessage}
-        </span>
-      ) : null}
-    </FormGroup>
+        </OLFormText>
+      )}
+    </OLFormGroup>
   )
 }
 

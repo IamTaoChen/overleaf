@@ -64,8 +64,11 @@ async function settingsPage(req, res) {
   const user = await UserGetter.promises.getUser(userId)
   if (!user) {
     // The user has just deleted their account.
-    return UserSessionsManager.revokeAllUserSessions({ _id: userId }, [], () =>
-      res.redirect('/')
+    return UserSessionsManager.removeSessionsFromRedis(
+      { _id: userId },
+      req,
+      { stayLoggedIn: false },
+      () => res.redirect('/')
     )
   }
 
@@ -111,26 +114,24 @@ async function settingsPage(req, res) {
     logger.error({ err }, 'error getting subscription admin email')
   }
 
-  const memberOfSSOEnabledGroups = []
+  let memberOfSSOEnabledGroups = []
   try {
-    const memberOfGroups =
-      await SubscriptionLocator.promises.getMemberSubscriptions(user._id)
-    for (const group of memberOfGroups) {
-      const hasSSOEnabled = (
-        await Modules.promises.hooks.fire('hasGroupSSOEnabled', group)
-      )?.[0]
-      if (hasSSOEnabled) {
-        const groupId = group._id.toString()
-        memberOfSSOEnabledGroups.push({
-          groupId,
-          linked: user.enrollment?.sso?.some(
-            sso => sso.groupId.toString() === groupId
-          ),
-          groupName: group.teamName,
-          adminEmail: group.admin_id?.email,
-        })
+    memberOfSSOEnabledGroups = (
+      await Modules.promises.hooks.fire(
+        'getUserGroupsSSOEnrollmentStatus',
+        user._id,
+        { teamName: 1 },
+        ['email']
+      )
+    )?.[0]
+    memberOfSSOEnabledGroups = memberOfSSOEnabledGroups.map(group => {
+      return {
+        groupId: group._id.toString(),
+        linked: group.linked,
+        groupName: group.teamName,
+        adminEmail: group.admin_id?.email,
       }
-    }
+    })
   } catch (error) {
     logger.error(
       { err: error },
@@ -213,10 +214,7 @@ const UserPagesController = {
   accountSuspended: expressify(accountSuspended),
 
   registerPage(req, res) {
-    const sharedProjectData = {
-      project_name: req.query.project_name,
-      user_first_name: req.query.user_first_name,
-    }
+    const sharedProjectData = req.session.sharedProjectData || {}
 
     const newTemplateData = {}
     if (req.session.templateData != null) {

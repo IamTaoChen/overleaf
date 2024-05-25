@@ -14,7 +14,6 @@ const HttpPermissionsPolicyMiddleware = require('./HttpPermissionsPolicy')
 const sessionsRedisClient = UserSessionsRedis.client()
 
 const SessionAutostartMiddleware = require('./SessionAutostartMiddleware')
-const SessionStoreManager = require('./SessionStoreManager')
 const AnalyticsManager = require('../Features/Analytics/AnalyticsManager')
 const session = require('express-session')
 const CustomSessionStore = require('./CustomSessionStore')
@@ -133,7 +132,7 @@ Modules.loadViewIncludes(app)
 
 app.use(metrics.http.monitor(logger))
 
-Modules.registerAppMiddleware(app)
+Modules.registerMiddleware(app, 'appMiddleware')
 app.use(bodyParser.urlencoded({ extended: true, limit: '2mb' }))
 app.use(bodyParser.json({ limit: Settings.max_json_request_size }))
 app.use(methodOverride())
@@ -155,8 +154,15 @@ if (Settings.useHttpPermissionsPolicy) {
 
 RedirectManager.apply(webRouter)
 
+if (!Settings.security.sessionSecret) {
+  throw new Error('Session secret is not set - refusing to start server')
+}
+
 webRouter.use(cookieParser(Settings.security.sessionSecret))
 SessionAutostartMiddleware.applyInitialMiddleware(webRouter)
+Modules.registerMiddleware(webRouter, 'sessionMiddleware', {
+  store: sessionStore,
+})
 webRouter.use(
   session({
     resave: false,
@@ -177,11 +183,6 @@ webRouter.use(
 if (Features.hasFeature('saas')) {
   webRouter.use(AnalyticsManager.analyticsIdMiddleware)
 }
-
-// patch the session store to generate a validation token for every new session
-SessionStoreManager.enableValidationToken(sessionStore)
-// use middleware to reject all requests with invalid tokens
-webRouter.use(SessionStoreManager.validationMiddleware)
 
 // passport
 webRouter.use(passport.initialize())

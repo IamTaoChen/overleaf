@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { ControlLabel, FormControl, FormGroup } from 'react-bootstrap'
 import { useTranslation } from 'react-i18next'
 import {
   getUserFacingMessage,
@@ -9,8 +8,12 @@ import getMeta from '../../../utils/meta'
 import { ExposedSettings } from '../../../../../types/exposed-settings'
 import useAsync from '../../../shared/hooks/use-async'
 import { useUserContext } from '../../../shared/context/user-context'
-import ButtonWrapper from '@/features/ui/components/bootstrap-5/wrappers/button-wrapper'
-import NotificationWrapper from '@/features/ui/components/bootstrap-5/notification-wrapper'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import OLNotification from '@/features/ui/components/ol/ol-notification'
+import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
+import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
+import OLFormControl from '@/features/ui/components/ol/ol-form-control'
+import FormText from '@/features/ui/components/bootstrap-5/form/form-text'
 
 function AccountInfoSection() {
   const { t } = useTranslation()
@@ -104,23 +107,23 @@ function AccountInfoSection() {
           required={false}
         />
         {isSuccess ? (
-          <FormGroup>
-            <NotificationWrapper
+          <OLFormGroup>
+            <OLNotification
               type="success"
               content={t('thanks_settings_updated')}
             />
-          </FormGroup>
+          </OLFormGroup>
         ) : null}
         {isError ? (
-          <FormGroup>
-            <NotificationWrapper
+          <OLFormGroup>
+            <OLNotification
               type="error"
               content={getUserFacingMessage(error) ?? ''}
             />
-          </FormGroup>
+          </OLFormGroup>
         ) : null}
         {canUpdateEmail || canUpdateNames ? (
-          <ButtonWrapper
+          <OLButton
             type="submit"
             variant="primary"
             form="account-info-form"
@@ -131,7 +134,7 @@ function AccountInfoSection() {
             }}
           >
             {t('update')}
-          </ButtonWrapper>
+          </OLButton>
         ) : null}
       </form>
     </>
@@ -159,14 +162,12 @@ function ReadOrWriteFormGroup({
 }: ReadOrWriteFormGroupProps) {
   const [validationMessage, setValidationMessage] = useState('')
 
-  const handleInvalid = (
-    event: React.InvalidEvent<HTMLInputElement & FormControl>
-  ) => {
+  const handleInvalid = (event: React.InvalidEvent<HTMLInputElement>) => {
     event.preventDefault()
   }
 
   const handleChangeAndValidity = (
-    event: React.ChangeEvent<HTMLInputElement & FormControl>
+    event: React.ChangeEvent<HTMLInputElement>
   ) => {
     handleChange(event)
     setValidationMessage(event.target.validationMessage)
@@ -174,18 +175,17 @@ function ReadOrWriteFormGroup({
 
   if (!canEdit) {
     return (
-      <FormGroup>
-        <ControlLabel htmlFor={id}>{label}</ControlLabel>
-        <FormControl id={id} type="text" readOnly value={value} />
-      </FormGroup>
+      <OLFormGroup controlId={id}>
+        <OLFormLabel>{label}</OLFormLabel>
+        <OLFormControl type="text" readOnly value={value} />
+      </OLFormGroup>
     )
   }
 
   return (
-    <FormGroup>
-      <ControlLabel htmlFor={id}>{label}</ControlLabel>
-      <FormControl
-        id={id}
+    <OLFormGroup controlId={id}>
+      <OLFormLabel>{label}</OLFormLabel>
+      <OLFormControl
         type={type}
         required={required}
         value={value}
@@ -193,10 +193,8 @@ function ReadOrWriteFormGroup({
         onChange={handleChangeAndValidity}
         onInvalid={handleInvalid}
       />
-      {validationMessage ? (
-        <span className="small text-danger">{validationMessage}</span>
-      ) : null}
-    </FormGroup>
+      {validationMessage && <FormText isError>{validationMessage}</FormText>}
+    </OLFormGroup>
   )
 }
 

@@ -1,14 +1,18 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Modal } from 'react-bootstrap'
 import { FetchError } from '../../../../infrastructure/fetch-json'
-import AccessibleModal from '../../../../shared/components/accessible-modal'
 import IEEELogo from '../../../../shared/svgs/ieee-logo'
 import GoogleLogo from '../../../../shared/svgs/google-logo'
 import OrcidLogo from '../../../../shared/svgs/orcid-logo'
 import LinkingStatus from './status'
-import ButtonWrapper from '@/features/ui/components/bootstrap-5/wrappers/button-wrapper'
+import OLButton from '@/features/ui/components/ol/ol-button'
 import { bsVersion } from '@/features/utils/bootstrap-5'
+import OLModal, {
+  OLModalBody,
+  OLModalFooter,
+  OLModalHeader,
+  OLModalTitle,
+} from '@/features/ui/components/ol/ol-modal'
 
 const providerLogos: { readonly [p: string]: JSX.Element } = {
   collabratec: <IEEELogo />,
@@ -114,27 +118,27 @@ function ActionButton({
   const { t } = useTranslation()
   if (unlinkRequestInflight) {
     return (
-      <ButtonWrapper
+      <OLButton
         variant="danger-ghost"
         disabled
         bs3Props={{ bsStyle: null, className: 'btn-danger-ghost' }}
       >
         {t('unlinking')}
-      </ButtonWrapper>
+      </OLButton>
     )
   } else if (accountIsLinked) {
     return (
-      <ButtonWrapper
+      <OLButton
         variant="danger-ghost"
         onClick={onUnlinkClick}
         bs3Props={{ bsStyle: null, className: 'btn-danger-ghost' }}
       >
         {t('unlink')}
-      </ButtonWrapper>
+      </OLButton>
     )
   } else {
     return (
-      <ButtonWrapper
+      <OLButton
         variant="secondary"
         href={linkPath}
         bs3Props={{ bsStyle: null }}
@@ -144,7 +148,7 @@ function ActionButton({
         })}
       >
         {t('link')}
-      </ButtonWrapper>
+      </OLButton>
     )
   }
 }
@@ -165,19 +169,19 @@ function UnlinkConfirmModal({
   const { t } = useTranslation()
 
   return (
-    <AccessibleModal show={show} onHide={handleHide}>
-      <Modal.Header closeButton>
-        <Modal.Title>
+    <OLModal show={show} onHide={handleHide}>
+      <OLModalHeader closeButton>
+        <OLModalTitle>
           {t('unlink_provider_account_title', { provider: title })}
-        </Modal.Title>
-      </Modal.Header>
+        </OLModalTitle>
+      </OLModalHeader>
 
-      <Modal.Body className="modal-body-share">
+      <OLModalBody>
         <p>{t('unlink_provider_account_warning', { provider: title })}</p>
-      </Modal.Body>
+      </OLModalBody>
 
-      <Modal.Footer>
-        <ButtonWrapper
+      <OLModalFooter>
+        <OLButton
           variant="secondary"
           onClick={handleHide}
           bs3Props={{
@@ -186,15 +190,15 @@ function UnlinkConfirmModal({
           }}
         >
           {t('cancel')}
-        </ButtonWrapper>
-        <ButtonWrapper
+        </OLButton>
+        <OLButton
           variant="danger-ghost"
           onClick={handleConfirmation}
           bs3Props={{ bsStyle: null, className: 'btn-danger-ghost' }}
         >
           {t('unlink')}
-        </ButtonWrapper>
-      </Modal.Footer>
-    </AccessibleModal>
+        </OLButton>
+      </OLModalFooter>
+    </OLModal>
   )
 }

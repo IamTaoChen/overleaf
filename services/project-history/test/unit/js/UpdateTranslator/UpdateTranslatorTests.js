@@ -625,11 +625,7 @@ describe('UpdateTranslator', function () {
                 {
                   p: 3,
                   r: 'lo',
-                  tracking: {
-                    type: 'none',
-                    ts: this.timestamp,
-                    userId: this.user_id,
-                  },
+                  tracking: { type: 'none' },
                 },
               ],
               v: this.version,
@@ -658,11 +654,7 @@ describe('UpdateTranslator', function () {
                   3,
                   {
                     r: 2,
-                    tracking: {
-                      type: 'none',
-                      ts: this.timestamp,
-                      userId: this.user_id,
-                    },
+                    tracking: { type: 'none' },
                   },
                   15,
                 ],
@@ -814,13 +806,11 @@ describe('UpdateTranslator', function () {
                 pathname: 'main.tex',
                 commentId: 'comment-id-1',
                 ranges: [{ pos: 5, length: 12 }],
-                resolved: false,
               },
               {
                 pathname: 'main.tex',
                 commentId: 'comment-id-2',
                 ranges: [{ pos: 7, length: 15 }],
-                resolved: false,
               },
               {
                 pathname: 'main.tex',
@@ -999,7 +989,6 @@ describe('UpdateTranslator', function () {
                 pathname: 'main.tex',
                 commentId: 'comment-id',
                 ranges: [{ pos: 11, length: 14 }],
-                resolved: false,
               },
             ],
             v2Authors: [this.user_id],
@@ -1047,11 +1036,7 @@ describe('UpdateTranslator', function () {
                   3,
                   {
                     r: 3,
-                    tracking: {
-                      type: 'none',
-                      userId: this.user_id,
-                      ts: new Date(this.timestamp).toISOString(),
-                    },
+                    tracking: { type: 'none' },
                   },
                   14,
                 ],
@@ -1126,11 +1111,7 @@ describe('UpdateTranslator', function () {
                   3,
                   {
                     r: 17,
-                    tracking: {
-                      type: 'none',
-                      userId: this.user_id,
-                      ts: new Date(this.timestamp).toISOString(),
-                    },
+                    tracking: { type: 'none' },
                   },
                   3,
                   -18,

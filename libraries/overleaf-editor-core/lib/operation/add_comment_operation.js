@@ -38,11 +38,14 @@ class AddCommentOperation extends EditOperation {
    * @returns {RawAddCommentOperation}
    */
   toJSON() {
-    return {
+    const raw = {
       commentId: this.commentId,
       ranges: this.ranges.map(range => range.toRaw()),
-      resolved: this.resolved,
     }
+    if (this.resolved) {
+      raw.resolved = true
+    }
+    return raw
   }
 
   /**
@@ -55,11 +58,21 @@ class AddCommentOperation extends EditOperation {
   }
 
   /**
-   *
-   * @returns {DeleteCommentOperation}
+   * @inheritdoc
+   * @param {StringFileData} previousState
+   * @returns {EditOperation}
    */
-  invert() {
-    return new core.DeleteCommentOperation(this.commentId)
+  invert(previousState) {
+    const comment = previousState.comments.getComment(this.commentId)
+    if (!comment) {
+      return new core.DeleteCommentOperation(this.commentId)
+    }
+
+    return new core.AddCommentOperation(
+      comment.id,
+      comment.ranges.slice(),
+      comment.resolved
+    )
   }
 
   /**

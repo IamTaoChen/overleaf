@@ -7,7 +7,7 @@
   --link-visited-color: var(--link-ui-visited);
 }
 
-a:not([role='button']) {
+a {
   color: var(--link-color);
 
   &:hover {

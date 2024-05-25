@@ -5,8 +5,8 @@ import { useSSOContext, SSOSubscription } from '../context/sso-context'
 import { SSOLinkingWidget } from './linking/sso-widget'
 import getMeta from '../../../utils/meta'
 import { useBroadcastUser } from '@/shared/hooks/user-channel/use-broadcast-user'
-import { useSplitTestContext } from '@/shared/context/split-test-context'
-import NotificationWrapper from '@/features/ui/components/bootstrap-5/notification-wrapper'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
+import OLNotification from '@/features/ui/components/ol/ol-notification'
 
 function LinkingSection() {
   useBroadcastUser()
@@ -51,16 +51,12 @@ function LinkingSection() {
   // currently the only thing that is in the langFeedback section is writefull,
   // which is behind a split test. we should hide this section if the user is not in the split test
   // todo: remove split test check, and split test context after gradual rollout is complete
-  const {
-    splitTestVariants,
-  }: { splitTestVariants: Record<string, string | undefined> } =
-    useSplitTestContext()
+  const hasWritefullOauthPromotion = useFeatureFlag('writefull-oauth-promotion')
 
   // even if they arent in the split test, if they have it enabled let them toggle it off
   const user = getMeta('ol-user')
   const shouldLoadWritefull =
-    (splitTestVariants['writefull-oauth-promotion'] === 'enabled' ||
-      user.writefull?.enabled === true) &&
+    (hasWritefullOauthPromotion || user.writefull?.enabled === true) &&
     !window.writefull // check if the writefull extension is installed, in which case we dont handle the integration
 
   const haslangFeedbackLinkingWidgets =
@@ -126,7 +122,7 @@ function LinkingSection() {
             {t('project_synchronisation')}
           </h3>
           {projectSyncSuccessMessage ? (
-            <NotificationWrapper
+            <OLNotification
               type="success"
               content={projectSyncSuccessMessage}
             />
@@ -170,7 +166,7 @@ function LinkingSection() {
             {t('linked_accounts')}
           </h3>
           {ssoErrorMessage ? (
-            <NotificationWrapper
+            <OLNotification
               type="error"
               content={`${t('sso_link_error')}: ${ssoErrorMessage}`}
             />

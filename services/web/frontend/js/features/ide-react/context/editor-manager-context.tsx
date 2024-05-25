@@ -30,6 +30,8 @@ import useEventListener from '@/shared/hooks/use-event-listener'
 import { EditorType } from '@/features/ide-react/editor/types/editor-type'
 import { DocId } from '../../../../../types/project-settings'
 import { Update } from '@/features/history/services/types/update'
+import { useDebugDiffTracker } from '../hooks/use-debug-diff-tracker'
+import { useEditorContext } from '@/shared/context/editor-context'
 
 interface GotoOffsetOptions {
   gotoOffset: number
@@ -60,6 +62,7 @@ export type EditorManager = {
   setWantTrackChanges: React.Dispatch<
     React.SetStateAction<EditorManager['wantTrackChanges']>
   >
+  debugTimers: React.MutableRefObject<Record<string, number>>
 }
 
 function hasGotoLine(options: OpenDocOptions): options is GotoLineOptions {
@@ -91,6 +94,7 @@ export const EditorManagerProvider: FC = ({ children }) => {
   const ide = useIdeContext()
   const { projectId } = useIdeReactContext()
   const { reportError, eventEmitter, eventLog } = useIdeReactContext()
+  const { setOutOfSync } = useEditorContext()
   const { socket, disconnect, connectionState } = useConnectionContext()
   const { view, setView } = useLayoutContext()
   const { showGenericMessageModal, genericModalVisible, showOutOfSyncModal } =
@@ -126,12 +130,32 @@ export const EditorManagerProvider: FC = ({ children }) => {
 
   const [ignoringExternalUpdates, setIgnoringExternalUpdates] = useState(false)
 
+  const { createDebugDiff, debugTimers } = useDebugDiffTracker(
+    projectId,
+    currentDocument
+  )
+
   const [globalEditorWatchdogManager] = useState(
     () =>
       new EditorWatchdogManager({
         onTimeoutHandler: (meta: Record<string, any>) => {
-          sendMB('losing-edits', meta)
-          reportError('losing-edits', meta)
+          let diffSize: number | null = null
+          createDebugDiff()
+            .then(calculatedDiffSize => {
+              diffSize = calculatedDiffSize
+            })
+            .finally(() => {
+              sendMB('losing-edits', {
+                ...meta,
+                diffSize,
+                timers: debugTimers.current,
+              })
+              reportError('losing-edits', {
+                ...meta,
+                diffSize,
+                timers: debugTimers.current,
+              })
+            })
         },
       })
   )
@@ -406,7 +430,9 @@ export const EditorManagerProvider: FC = ({ children }) => {
 
       const done = (isNewDoc: boolean) => {
         window.dispatchEvent(
-          new CustomEvent('doc:after-opened', { detail: isNewDoc })
+          new CustomEvent('doc:after-opened', {
+            detail: { isNewDoc, docId: doc._id },
+          })
         )
         if (hasGotoLine(options)) {
           window.setTimeout(() => jumpToLine(options))
@@ -542,6 +568,9 @@ export const EditorManagerProvider: FC = ({ children }) => {
 
         // Tell the user about the error state.
         setIsInErrorState(true)
+        // Ensure that the editor is locked
+        setOutOfSync(true)
+        // Display the "out of sync" modal
         showOutOfSyncModal(editorContent || '')
 
         // Do not forceReopen the document.
@@ -568,6 +597,7 @@ export const EditorManagerProvider: FC = ({ children }) => {
     setIsInErrorState,
     showGenericMessageModal,
     showOutOfSyncModal,
+    setOutOfSync,
     t,
   ])
 
@@ -616,6 +646,7 @@ export const EditorManagerProvider: FC = ({ children }) => {
       jumpToLine,
       wantTrackChanges,
       setWantTrackChanges,
+      debugTimers,
     }),
     [
       getEditorType,
@@ -633,6 +664,7 @@ export const EditorManagerProvider: FC = ({ children }) => {
       jumpToLine,
       wantTrackChanges,
       setWantTrackChanges,
+      debugTimers,
     ]
   )
 

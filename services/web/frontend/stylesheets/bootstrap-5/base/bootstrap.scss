@@ -26,6 +26,7 @@
 @import 'bootstrap-5/scss/images';
 @import 'bootstrap-5/scss/containers';
 @import 'bootstrap-5/scss/grid';
+@import 'bootstrap-5/scss/forms';
 @import 'bootstrap-5/scss/buttons';
 @import 'bootstrap-5/scss/dropdown';
 @import 'bootstrap-5/scss/badge';
@@ -33,6 +34,7 @@
 @import 'bootstrap-5/scss/tooltip';
 @import 'bootstrap-5/scss/spinners';
 @import 'bootstrap-5/scss/card';
+@import 'bootstrap-5/scss/close';
 
 // Helpers
 @import 'bootstrap-5/scss/helpers';
@@ -40,5 +42,11 @@
 // Utilities
 @import 'bootstrap-5/scss/utilities/api';
 
+// Mixins
+@import 'bootstrap-5/scss/mixins/breakpoints';
+
 // Components custom style
 @import '../components/all';
+
+// Pages custom style
+@import '../pages/all';
