@@ -22,13 +22,11 @@ const AnalyticsRegistrationSourceHelper = require('../Analytics/AnalyticsRegistr
 const {
   acceptsJson,
 } = require('../../infrastructure/RequestContentTypeDetection')
-const {
-  ParallelLoginError,
-  PasswordReusedError,
-} = require('./AuthenticationErrors')
 const { hasAdminAccess } = require('../Helpers/AdminAuthorizationHelper')
 const Modules = require('../../infrastructure/Modules')
-const { expressify } = require('@overleaf/promise-utils')
+const { expressify, promisify } = require('@overleaf/promise-utils')
+const { handleAuthenticateErrors } = require('./AuthenticationErrors')
+const EmailHelper = require('../Helpers/EmailHelper')
 const { Issuer, generators } = require('openid-client')
 
 let client;
@@ -45,6 +43,7 @@ Issuer.discover(process.env.OVERLEAF_OIDC_ISSUER)
   .catch(error => {
     console.error('Error setting up OIDC client:', error);
   });
+
 
 function send401WithChallenge(res) {
   res.setHeader('WWW-Authenticate', 'OverleafLogin')
@@ -79,6 +78,7 @@ function userHasStaffAccess(user) {
   return user.staffAccess && Object.values(user.staffAccess).includes(true)
 }
 
+// TODO: Finish making these methods async
 const AuthenticationController = {
   serializeUser(user, callback) {
     if (!user._id || !user.email) {
@@ -121,7 +121,7 @@ const AuthenticationController = {
     passport.authenticate(
       'local',
       { keepSessionInfo: true },
-      function (err, user, info) {
+      async function (err, user, info) {
         if (err) {
           return next(err)
         }
@@ -130,7 +130,18 @@ const AuthenticationController = {
           AuthenticationController.setAuditInfo(req, {
             method: 'Password login',
           })
-          return AuthenticationController.finishLogin(user, req, res, next)
+
+          try {
+            // We could investigate whether this can be done together with 'preFinishLogin' instead of being its own hook
+            await Modules.promises.hooks.fire(
+              'saasLogin',
+              { email: user.email },
+              req
+            )
+            await AuthenticationController.promises.finishLogin(user, req, res)
+          } catch (err) {
+            return next(err)
+          }
         } else {
           if (info.redir != null) {
             return res.json({ redir: info.redir })
@@ -150,7 +161,7 @@ const AuthenticationController = {
     )(req, res, next)
   },
 
-  finishLogin(user, req, res, next) {
+  async _finishLoginAsync(user, req, res) {
     if (user === false) {
       return AsyncFormHelper.redirect(req, res, '/login')
     } // OAuth2 'state' mismatch
@@ -170,158 +181,146 @@ const AuthenticationController = {
     const anonymousAnalyticsId = req.session.analyticsId
     const isNewUser = req.session.justRegistered || false
 
-    Modules.hooks.fire(
+    const results = await Modules.promises.hooks.fire(
       'preFinishLogin',
       req,
       res,
-      user,
-      function (error, results) {
-        if (error) {
-          return next(error)
-        }
-        if (results.some(result => result && result.doNotFinish)) {
-          return
-        }
+      user
+    )
 
-        if (user.must_reconfirm) {
-          return AuthenticationController._redirectToReconfirmPage(
-            req,
-            res,
-            user
-          )
-        }
+    if (results.some(result => result && result.doNotFinish)) {
+      return
+    }
 
-        const redir =
-          AuthenticationController.getRedirectFromSession(req) || '/project'
+    if (user.must_reconfirm) {
+      return AuthenticationController._redirectToReconfirmPage(req, res, user)
+    }
 
-        _loginAsyncHandlers(req, user, anonymousAnalyticsId, isNewUser)
-        const userId = user._id
-        UserAuditLogHandler.addEntry(
-          userId,
-          'login',
-          userId,
-          req.ip,
-          auditInfo,
-          err => {
-            if (err) {
-              return next(err)
-            }
-            _afterLoginSessionSetup(req, user, function (err) {
-              if (err) {
-                return next(err)
-              }
-              AuthenticationController._clearRedirectFromSession(req)
-              AnalyticsRegistrationSourceHelper.clearSource(req.session)
-              AnalyticsRegistrationSourceHelper.clearInbound(req.session)
-              AsyncFormHelper.redirect(req, res, redir)
-            })
-          }
-        )
-      }
+    const redir =
+      AuthenticationController.getRedirectFromSession(req) || '/project'
+
+    _loginAsyncHandlers(req, user, anonymousAnalyticsId, isNewUser)
+    const userId = user._id
+
+    await UserAuditLogHandler.promises.addEntry(
+      userId,
+      'login',
+      userId,
+      req.ip,
+      auditInfo
+    )
+
+    await _afterLoginSessionSetupAsync(req, user)
+
+    AuthenticationController._clearRedirectFromSession(req)
+    AnalyticsRegistrationSourceHelper.clearSource(req.session)
+    AnalyticsRegistrationSourceHelper.clearInbound(req.session)
+    AsyncFormHelper.redirect(req, res, redir)
+  },
+
+  finishLogin(user, req, res, next) {
+    AuthenticationController._finishLoginAsync(user, req, res).catch(err =>
+      next(err)
     )
   },
 
-  doPassportLogin(req, username, password, done) {
-    const email = username.toLowerCase()
-    Modules.hooks.fire(
-      'preDoPassportLogin',
-      req,
-      email,
-      function (err, infoList) {
-        if (err) {
-          return done(err)
-        }
-        const info = infoList.find(i => i != null)
-        if (info != null) {
-          return done(null, false, info)
-        }
-        LoginRateLimiter.processLoginRequest(email, function (err, isAllowed) {
-          if (err) {
-            return done(err)
-          }
-          if (!isAllowed) {
-            logger.debug({ email }, 'too many login requests')
-            return done(null, null, {
-              text: req.i18n.translate('to_many_login_requests_2_mins'),
-              type: 'error',
-              key: 'to-many-login-requests-2-mins',
-              status: 429,
-            })
-          }
-          const { fromKnownDevice } = AuthenticationController.getAuditInfo(req)
-          const auditLog = {
-            ipAddress: req.ip,
-            info: { method: 'Password login', fromKnownDevice },
-          }
-          AuthenticationManager.authenticate(
-            { email },
-            password,
-            auditLog,
-            {
-              enforceHIBPCheck: !fromKnownDevice,
-            },
-            function (error, user, isPasswordReused) {
-              if (error != null) {
-                if (error instanceof ParallelLoginError) {
-                  return done(null, false, { status: 429 })
-                } else if (error instanceof PasswordReusedError) {
-                  const text = `${req.i18n
-                    .translate(
-                      'password_compromised_try_again_or_use_known_device_or_reset'
-                    )
-                    .replace('<0>', '')
-                    .replace('</0>', ' (https://haveibeenpwned.com/passwords)')
-                    .replace('<1>', '')
-                    .replace(
-                      '</1>',
-                      ` (${Settings.siteUrl}/user/password/reset)`
-                    )}.`
-                  return done(null, false, {
-                    status: 400,
-                    type: 'error',
-                    key: 'password-compromised',
-                    text,
-                  })
-                }
-                return done(error)
-              }
-              if (
-                user &&
-                AuthenticationController.captchaRequiredForLogin(req, user)
-              ) {
-                done(null, false, {
-                  text: req.i18n.translate('cannot_verify_user_not_robot'),
-                  type: 'error',
-                  errorReason: 'cannot_verify_user_not_robot',
-                  status: 400,
-                })
-              } else if (user) {
-                if (
-                  isPasswordReused &&
-                  AuthenticationController.getRedirectFromSession(req) == null
-                ) {
-                  AuthenticationController.setRedirectInSession(
-                    req,
-                    '/compromised-password'
-                  )
-                }
+  async doPassportLogin(req, username, password, done) {
+    let user, info
+    try {
+      ;({ user, info } = await AuthenticationController._doPassportLogin(
+        req,
+        username,
+        password
+      ))
+    } catch (error) {
+      return done(error)
+    }
+    return done(undefined, user, info)
+  },
 
-                // async actions
-                done(null, user)
-              } else {
-                AuthenticationController._recordFailedLogin()
-                logger.debug({ email }, 'failed log in')
-                done(null, false, {
-                  type: 'error',
-                  key: 'invalid-password-retry-or-reset',
-                  status: 401,
-                })
-              }
-            }
-          )
-        })
+  /**
+   *
+   * @param req
+   * @param username
+   * @param password
+   * @returns {Promise<{ user: any, info: any}>}
+   */
+  async _doPassportLogin(req, username, password) {
+    const email = EmailHelper.parseEmail(username)
+    if (!email) {
+      Metrics.inc('login_failure_reason', 1, { status: 'invalid_email' })
+      return {
+        user: null,
+        info: {
+          status: 400,
+          type: 'error',
+          text: req.i18n.translate('email_address_is_invalid'),
+        },
       }
-    )
+    }
+    AuthenticationController.setAuditInfo(req, { method: 'Password login' })
+
+    const { fromKnownDevice } = AuthenticationController.getAuditInfo(req)
+    const auditLog = {
+      ipAddress: req.ip,
+      info: { method: 'Password login', fromKnownDevice },
+    }
+
+    let user, isPasswordReused
+    try {
+      ;({ user, isPasswordReused } =
+        await AuthenticationManager.promises.authenticate(
+          { email },
+          password,
+          auditLog,
+          {
+            enforceHIBPCheck: !fromKnownDevice,
+          }
+        ))
+    } catch (error) {
+      return {
+        user: false,
+        info: handleAuthenticateErrors(error, req),
+      }
+    }
+
+    if (user && AuthenticationController.captchaRequiredForLogin(req, user)) {
+      Metrics.inc('login_failure_reason', 1, { status: 'captcha_missing' })
+      return {
+        user: false,
+        info: {
+          text: req.i18n.translate('cannot_verify_user_not_robot'),
+          type: 'error',
+          errorReason: 'cannot_verify_user_not_robot',
+          status: 400,
+        },
+      }
+    } else if (user) {
+      if (
+        isPasswordReused &&
+        AuthenticationController.getRedirectFromSession(req) == null
+      ) {
+        AuthenticationController.setRedirectInSession(
+          req,
+          '/compromised-password'
+        )
+      }
+
+      // async actions
+      return { user, info: undefined }
+    } else {
+      Metrics.inc('login_failure_reason', 1, { status: 'password_invalid' })
+      AuthenticationController._recordFailedLogin()
+      logger.debug({ email }, 'failed log in')
+      return {
+        user: false,
+        info: {
+          type: 'error',
+          key: 'invalid-password-retry-or-reset',
+          status: 401,
+        },
+      }
+    }
   },
 
   captchaRequiredForLogin(req, user) {
@@ -709,6 +708,8 @@ function _afterLoginSessionSetup(req, user, callback) {
   })
 }
 
+const _afterLoginSessionSetupAsync = promisify(_afterLoginSessionSetup)
+
 function _loginAsyncHandlers(req, user, anonymousAnalyticsId, isNewUser) {
   UserHandler.setupLoginData(user, err => {
     if (err != null) {
@@ -718,7 +719,7 @@ function _loginAsyncHandlers(req, user, anonymousAnalyticsId, isNewUser) {
   LoginRateLimiter.recordSuccessfulLogin(user.email, () => {})
   AuthenticationController._recordSuccessfulLogin(user._id, () => {})
   AuthenticationController.ipMatchCheck(req, user)
-  Analytics.recordEventForUser(user._id, 'user-logged-in', {
+  Analytics.recordEventForUserInBackground(user._id, 'user-logged-in', {
     source: req.session.saml
       ? 'saml'
       : req.user_info?.auth_provider || 'email-password',
@@ -733,6 +734,10 @@ function _loginAsyncHandlers(req, user, anonymousAnalyticsId, isNewUser) {
   req.session.justLoggedIn = true
   // capture the request ip for use when creating the session
   return (user._login_req_ip = req.ip)
+}
+
+AuthenticationController.promises = {
+  finishLogin: AuthenticationController._finishLoginAsync,
 }
 
 module.exports = AuthenticationController

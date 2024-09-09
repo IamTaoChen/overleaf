@@ -14,7 +14,6 @@ import { debugConsole } from '@/utils/debugging'
 import { ssoAvailableForInstitution } from '@/features/settings/utils/sso'
 import { Trans, useTranslation } from 'react-i18next'
 import useAsync from '@/shared/hooks/use-async'
-import { ExposedSettings } from '../../../../../../types/exposed-settings'
 import { useLocation } from '@/shared/hooks/use-location'
 import OLButton from '@/features/ui/components/ol/ol-button'
 import classnames from 'classnames'
@@ -24,13 +23,11 @@ type ReconfirmationInfoProps = {
 }
 
 function ReconfirmationInfo({ userEmailData }: ReconfirmationInfoProps) {
-  const reconfirmationRemoveEmail = getMeta(
-    'ol-reconfirmationRemoveEmail'
-  ) as string
-  const reconfirmedViaSAML = getMeta('ol-reconfirmedViaSAML') as string
+  const reconfirmationRemoveEmail = getMeta('ol-reconfirmationRemoveEmail')
+  const reconfirmedViaSAML = getMeta('ol-reconfirmedViaSAML')
 
   const { t } = useTranslation()
-  const { samlInitPath } = getMeta('ol-ExposedSettings') as ExposedSettings
+  const { samlInitPath } = getMeta('ol-ExposedSettings')
   const { error, isLoading, isError, isSuccess, runAsync } = useAsync()
   const { state, setLoading: setUserEmailsContextLoading } =
     useUserEmailsContext()
@@ -81,7 +78,7 @@ function ReconfirmationInfo({ userEmailData }: ReconfirmationInfoProps) {
   ) {
     return (
       <OLRow>
-        <OLCol md={12}>
+        <OLCol lg={12}>
           <OLNotification
             type="info"
             content={
@@ -99,8 +96,8 @@ function ReconfirmationInfo({ userEmailData }: ReconfirmationInfoProps) {
   if (userEmailData.affiliation.inReconfirmNotificationPeriod) {
     return (
       <OLRow>
-        <OLCol md={12}>
-          {isBootstrap5 ? (
+        <OLCol lg={12}>
+          {isBootstrap5() ? (
             <OLNotification
               type="info"
               content={
@@ -149,10 +146,7 @@ function ReconfirmationInfo({ userEmailData }: ReconfirmationInfoProps) {
                         variant="link"
                         disabled={state.isLoading}
                         onClick={handleRequestReconfirmation}
-                        bs3Props={{
-                          className: 'btn-inline-link',
-                          bsStyle: null,
-                        }}
+                        className="btn-inline-link"
                       >
                         {t('resend_confirmation_email')}
                       </OLButton>
@@ -164,7 +158,6 @@ function ReconfirmationInfo({ userEmailData }: ReconfirmationInfoProps) {
                     disabled={isPending}
                     isLoading={isLoading}
                     onClick={handleRequestReconfirmation}
-                    bs3Props={{ bsStyle: 'info' }}
                   >
                     {isLoading ? (
                       <>
@@ -208,7 +201,7 @@ function ReconfirmationInfo({ userEmailData }: ReconfirmationInfoProps) {
                       variant="link"
                       disabled={state.isLoading}
                       onClick={handleRequestReconfirmation}
-                      bs3Props={{ className: 'btn-inline-link', bsStyle: null }}
+                      className="btn-inline-link"
                     >
                       {t('resend_confirmation_email')}
                     </OLButton>
@@ -240,7 +233,6 @@ function ReconfirmationInfo({ userEmailData }: ReconfirmationInfoProps) {
                       variant="secondary"
                       disabled={state.isLoading || isPending}
                       onClick={handleRequestReconfirmation}
-                      bs3Props={{ bsStyle: 'info' }}
                     >
                       {isLoading ? (
                         <>

@@ -16,6 +16,7 @@ const sessionsRedisClient = UserSessionsRedis.client()
 const SessionAutostartMiddleware = require('./SessionAutostartMiddleware')
 const AnalyticsManager = require('../Features/Analytics/AnalyticsManager')
 const session = require('express-session')
+const CookieMetrics = require('./CookieMetrics')
 const CustomSessionStore = require('./CustomSessionStore')
 const bodyParser = require('./BodyParserWrapper')
 const methodOverride = require('method-override')
@@ -128,11 +129,22 @@ webRouter.use(
 )
 app.set('views', Path.join(__dirname, '/../../views'))
 app.set('view engine', 'pug')
-Modules.loadViewIncludes(app)
+
+if (Settings.enabledServices.includes('web')) {
+  if (app.get('env') !== 'development') {
+    logger.debug('enabling view cache for production or acceptance tests')
+    app.enable('view cache')
+  }
+  if (Settings.precompilePugTemplatesAtBootTime) {
+    logger.debug('precompiling views for web in production environment')
+    Views.precompileViews(app)
+  }
+  Modules.loadViewIncludes(app)
+}
 
 app.use(metrics.http.monitor(logger))
 
-Modules.registerMiddleware(app, 'appMiddleware')
+Modules.applyMiddleware(app, 'appMiddleware')
 app.use(bodyParser.urlencoded({ extended: true, limit: '2mb' }))
 app.use(bodyParser.json({ limit: Settings.max_json_request_size }))
 app.use(methodOverride())
@@ -155,19 +167,26 @@ if (Settings.useHttpPermissionsPolicy) {
 RedirectManager.apply(webRouter)
 
 if (!Settings.security.sessionSecret) {
-  throw new Error('Session secret is not set - refusing to start server')
+  throw new Error('No SESSION_SECRET provided.')
 }
 
-webRouter.use(cookieParser(Settings.security.sessionSecret))
+const sessionSecrets = [
+  Settings.security.sessionSecret,
+  Settings.security.sessionSecretUpcoming,
+  Settings.security.sessionSecretFallback,
+].filter(Boolean)
+
+webRouter.use(cookieParser(sessionSecrets))
+webRouter.use(CookieMetrics.middleware)
 SessionAutostartMiddleware.applyInitialMiddleware(webRouter)
-Modules.registerMiddleware(webRouter, 'sessionMiddleware', {
+Modules.applyMiddleware(webRouter, 'sessionMiddleware', {
   store: sessionStore,
 })
 webRouter.use(
   session({
     resave: false,
     saveUninitialized: false,
-    secret: Settings.security.sessionSecret,
+    secret: sessionSecrets,
     proxy: Settings.behindProxy,
     cookie: {
       domain: Settings.cookieDomain,
@@ -277,6 +296,19 @@ webRouter.use(function addNoCacheHeader(req, res, next) {
     // don't set no-cache headers on a project file, as it's immutable and can be cached (privately)
     return next()
   }
+  const isProjectBlob = /^\/project\/[a-f0-9]{24}\/blob\/[a-f0-9]{40}$/.test(
+    req.path
+  )
+  if (isProjectBlob) {
+    // don't set no-cache headers on a project blobs, as they are immutable and can be cached (privately)
+    return next()
+  }
+
+  const isWikiContent = /^\/learn(-scripts)?(\/|$)/i.test(req.path)
+  if (isWikiContent) {
+    // don't set no-cache headers on wiki content, as it's immutable and can be cached (publicly)
+    return next()
+  }
 
   const isLoggedIn = SessionManager.isUserLoggedIn(req.session)
   if (isLoggedIn) {
@@ -326,16 +358,6 @@ if (Settings.enabledServices.includes('api')) {
 
 if (Settings.enabledServices.includes('web')) {
   logger.debug('providing web router')
-
-  if (Settings.precompilePugTemplatesAtBootTime) {
-    logger.debug('precompiling views for web in production environment')
-    Views.precompileViews(app)
-  }
-  if (app.get('env') === 'test') {
-    logger.debug('enabling view cache for acceptance tests')
-    app.enable('view cache')
-  }
-
   app.use(publicApiRouter) // public API goes with web router for public access
   app.use(Validation.errorMiddleware)
   app.use(ErrorController.handleApiError)

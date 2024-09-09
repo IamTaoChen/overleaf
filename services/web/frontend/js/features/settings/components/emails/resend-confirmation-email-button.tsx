@@ -51,7 +51,7 @@ function ResendConfirmationEmailButton({
         variant="link"
         disabled={state.isLoading || isLoading}
         onClick={handleResendConfirmationEmail}
-        bs3Props={{ bsStyle: null, className: 'btn-inline-link' }}
+        className="btn-inline-link"
       >
         {t('resend_confirmation_email')}
       </OLButton>

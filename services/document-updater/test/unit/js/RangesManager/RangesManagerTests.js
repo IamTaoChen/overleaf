@@ -518,6 +518,123 @@ describe('RangesManager', function () {
           ])
         })
       })
+
+      describe('tracked delete that overlaps the start of a comment', function () {
+        beforeEach(function () {
+          // original text is "one three four five"
+          this.ranges = {
+            comments: makeRanges([{ c: 'three', p: 4, t: 'comment-id-1' }]),
+          }
+          this.updates = makeUpdates([{ d: 'ne thr', p: 1 }], {
+            tc: 'tracking-id',
+          })
+          this.newDocLines = ['oee four five']
+          this.result = this.RangesManager.applyUpdate(
+            this.project_id,
+            this.doc_id,
+            this.ranges,
+            this.updates,
+            this.newDocLines,
+            { historyRangesSupport: true }
+          )
+        })
+
+        it('should crop the beginning of the comment', function () {
+          expect(this.result.historyUpdates.map(x => x.op)).to.deep.equal([
+            [
+              { d: 'ne thr', p: 1 },
+              { c: 'ee', p: 1, hpos: 7, t: 'comment-id-1' },
+            ],
+          ])
+        })
+      })
+
+      describe('tracked delete that overlaps a whole comment', function () {
+        beforeEach(function () {
+          // original text is "one three four five"
+          this.ranges = {
+            comments: makeRanges([{ c: 'three', p: 4, t: 'comment-id-1' }]),
+          }
+          this.updates = makeUpdates([{ d: 'ne three f', p: 1 }], {
+            tc: 'tracking-id',
+          })
+          this.newDocLines = ['oour five']
+          this.result = this.RangesManager.applyUpdate(
+            this.project_id,
+            this.doc_id,
+            this.ranges,
+            this.updates,
+            this.newDocLines,
+            { historyRangesSupport: true }
+          )
+        })
+
+        it('should crop the beginning of the comment', function () {
+          expect(this.result.historyUpdates.map(x => x.op)).to.deep.equal([
+            [
+              { d: 'ne three f', p: 1 },
+              { c: '', p: 1, hpos: 11, t: 'comment-id-1' },
+            ],
+          ])
+        })
+      })
+
+      describe('tracked delete that overlaps the end of a comment', function () {
+        beforeEach(function () {
+          // original text is "one three four five"
+          this.ranges = {
+            comments: makeRanges([{ c: 'three', p: 4, t: 'comment-id-1' }]),
+          }
+          this.updates = makeUpdates([{ d: 'ee f', p: 7 }], {
+            tc: 'tracking-id',
+          })
+          this.newDocLines = ['one throur five']
+          this.result = this.RangesManager.applyUpdate(
+            this.project_id,
+            this.doc_id,
+            this.ranges,
+            this.updates,
+            this.newDocLines,
+            { historyRangesSupport: true }
+          )
+        })
+
+        it('should crop the end of the comment', function () {
+          expect(this.result.historyUpdates.map(x => x.op)).to.deep.equal([
+            [
+              { d: 'ee f', p: 7 },
+              { c: 'thr', p: 4, t: 'comment-id-1' },
+            ],
+          ])
+        })
+      })
+
+      describe('tracked delete that overlaps the inside of a comment', function () {
+        beforeEach(function () {
+          // original text is "one three four five"
+          this.ranges = {
+            comments: makeRanges([{ c: 'three', p: 4, t: 'comment-id-1' }]),
+          }
+          this.updates = makeUpdates([{ d: 'hre', p: 5 }], {
+            tc: 'tracking-id',
+          })
+          this.newDocLines = ['one te four five']
+          this.result = this.RangesManager.applyUpdate(
+            this.project_id,
+            this.doc_id,
+            this.ranges,
+            this.updates,
+            this.newDocLines,
+            { historyRangesSupport: true }
+          )
+        })
+
+        it('should not crop the comment', function () {
+          expect(this.result.historyUpdates.map(x => x.op)).to.deep.equal([
+            [{ d: 'hre', p: 5 }],
+          ])
+        })
+      })
     })
   })
 
@@ -853,7 +970,7 @@ describe('RangesManager', function () {
             doc_length: 15,
             history_doc_length: 24,
             pathname: '',
-            ts: ranges.changes[1].metadata.ts,
+            ts: ranges.changes[2].metadata.ts,
           },
           op: [
             {
@@ -871,7 +988,7 @@ describe('RangesManager', function () {
             doc_length: 15,
             history_doc_length: 24,
             pathname: '',
-            ts: ranges.changes[2].metadata.ts,
+            ts: ranges.changes[3].metadata.ts,
           },
           op: [
             {
@@ -889,13 +1006,15 @@ describe('RangesManager', function () {
 function makeRanges(ops) {
   let id = 1
   const changes = []
+  let ts = Date.now()
   for (const op of ops) {
     changes.push({
       id: id.toString(),
       op,
-      metadata: { user_id: TEST_USER_ID, ts: new Date() },
+      metadata: { user_id: TEST_USER_ID, ts: new Date(ts) },
     })
     id += 1
+    ts += 1000 // use a unique timestamp for each change
   }
   return changes
 }

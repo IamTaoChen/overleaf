@@ -3,6 +3,7 @@ import { CompileContext, useLocalCompileContext } from './local-compile-context'
 import useDetachStateWatcher from '../hooks/use-detach-state-watcher'
 import useDetachAction from '../hooks/use-detach-action'
 import useCompileTriggers from '../../features/pdf-preview/hooks/use-compile-triggers'
+import { useLogEvents } from '@/features/pdf-preview/hooks/use-log-events'
 
 export const DetachCompileContext = createContext<CompileContext | undefined>(
   undefined
@@ -67,6 +68,7 @@ export const DetachCompileProvider: FC = ({ children }) => {
     setChangedAt: _setChangedAt,
     clearCache: _clearCache,
     syncToEntry: _syncToEntry,
+    recordAction: _recordAction,
   } = localCompileContext
 
   const [animateCompileDropdownArrow] = useDetachStateWatcher(
@@ -362,7 +364,15 @@ export const DetachCompileProvider: FC = ({ children }) => {
     'detacher'
   )
 
+  const recordAction = useDetachAction(
+    'record-action',
+    _recordAction,
+    'detached',
+    'detacher'
+  )
+
   useCompileTriggers(startCompile, setChangedAt)
+  useLogEvents(setShowLogs)
 
   const value = useMemo(
     () => ({
@@ -418,6 +428,7 @@ export const DetachCompileProvider: FC = ({ children }) => {
       setChangedAt,
       cleanupCompileResult,
       syncToEntry,
+      recordAction,
     }),
     [
       animateCompileDropdownArrow,
@@ -470,6 +481,7 @@ export const DetachCompileProvider: FC = ({ children }) => {
       setChangedAt,
       cleanupCompileResult,
       syncToEntry,
+      recordAction,
     ]
   )
 

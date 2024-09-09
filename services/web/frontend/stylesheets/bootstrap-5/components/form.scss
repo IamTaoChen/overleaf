@@ -2,9 +2,11 @@
   @function form-check-box-svg($color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path fill='none' stroke='#{$color}' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/></svg>");
   }
+
   @function form-check-radio-svg($color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='2' fill='#{$color}'/></svg>");
   }
+
   @function form-check-indeterminate-svg($color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path fill='none' stroke='#{$color}' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10h8'/></svg>");
   }
@@ -54,6 +56,12 @@
       }
     }
   }
+
+  &:focus-visible {
+    outline: 0;
+    border-color: $input-focus-border-color;
+    box-shadow: $input-focus-box-shadow;
+  }
 }
 
 .form-control {
@@ -78,5 +86,86 @@
 .form-label {
   &:has(+ .form-control[disabled]) {
     color: var(--content-disabled);
+  }
+}
+
+.form-group {
+  margin-bottom: $form-group-margin-bottom;
+}
+
+.form-control-wrapper {
+  position: relative;
+
+  &.form-control-wrapper-disabled {
+    .form-control-start-icon,
+    .form-control-end-icon {
+      & > * {
+        color: var(--content-disabled);
+      }
+    }
+  }
+
+  .form-control-start-icon,
+  .form-control-end-icon {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    font-size: 0;
+  }
+
+  .form-control-start-icon {
+    left: 0;
+    padding-left: calc(var(--form-control-padding-x) + var(--bs-border-width));
+  }
+
+  .form-control-end-icon {
+    right: 0;
+    padding-right: calc(var(--form-control-padding-x) + var(--bs-border-width));
+  }
+
+  --icon-width: 20px;
+  --form-control-padding-x: var(--spacing-04);
+  --form-control-icon-offset-y: var(--spacing-04);
+
+  &.form-control-wrapper-sm {
+    --form-control-padding-x: var(--spacing-03);
+    --form-control-icon-offset-y: var(--spacing-02);
+  }
+
+  &.form-control-wrapper-lg {
+    --form-control-padding-x: var(--spacing-05);
+    --form-control-icon-offset-y: var(--spacing-05);
+  }
+
+  .form-control-offset-start {
+    padding-left: calc(
+      var(--form-control-padding-x) + var(--form-control-icon-offset-y) +
+        var(--icon-width)
+    );
+  }
+
+  .form-control-offset-end {
+    padding-right: calc(
+      var(--form-control-padding-x) + var(--form-control-icon-offset-y) +
+        var(--icon-width)
+    );
+  }
+}
+
+.form-control,
+.form-select {
+  &:focus,
+  &:invalid:focus,
+  &.is-invalid:focus,
+  &:focus-visible,
+  &:invalid:focus-visible,
+  &.is-invalid:focus-visible {
+    color: $input-focus-color;
+    background-color: $input-focus-bg;
+    outline: 0;
+    border-color: $input-focus-border-color;
+    box-shadow: $input-focus-box-shadow;
   }
 }

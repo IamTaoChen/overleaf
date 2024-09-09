@@ -56,9 +56,33 @@
 @mixin modal-lg {
   max-width: 960px;
 }
+
 @mixin modal-md {
   max-width: 640px;
 }
+
 @mixin modal-sm {
   max-width: 480px;
+}
+
+// Toolbar
+@mixin toolbar-sm-height {
+  height: 32px;
+}
+
+@mixin toolbar-alt-bg() {
+  background-color: var(--bg-dark-secondary);
+}
+
+// Filetree
+@mixin file-tree-item-color {
+  color: var(--content-primary-dark);
+}
+
+@mixin file-tree-item-hover-bg {
+  background-color: var(--bg-dark-secondary);
+}
+
+@mixin file-tree-bg {
+  background-color: var(--bg-dark-tertiary);
 }

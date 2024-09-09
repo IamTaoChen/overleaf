@@ -42,6 +42,7 @@ interface OpenDocOptions
     Partial<GotoOffsetOptions> {
   gotoOffset?: number
   forceReopen?: boolean
+  keepCurrentView?: boolean
 }
 
 export type EditorManager = {
@@ -87,7 +88,9 @@ export type EditorScopeValue = {
   error_state: boolean
 }
 
-const EditorManagerContext = createContext<EditorManager | undefined>(undefined)
+export const EditorManagerContext = createContext<EditorManager | undefined>(
+  undefined
+)
 
 export const EditorManagerProvider: FC = ({ children }) => {
   const { t } = useTranslation()
@@ -283,6 +286,12 @@ export const EditorManagerProvider: FC = ({ children }) => {
         ) {
           return
         }
+        if (
+          update.meta.origin?.kind === 'file-restore' ||
+          update.meta.origin?.kind === 'project-restore'
+        ) {
+          return
+        }
         showGenericMessageModal(
           t('document_updated_externally'),
           t('document_updated_externally_detail')
@@ -426,7 +435,10 @@ export const EditorManagerProvider: FC = ({ children }) => {
         // store position of previous doc before switching docs
         eventEmitter.emit('store-doc-position')
       }
-      setView('editor')
+
+      if (!options.keepCurrentView) {
+        setView('editor')
+      }
 
       const done = (isNewDoc: boolean) => {
         window.dispatchEvent(
@@ -529,17 +541,21 @@ export const EditorManagerProvider: FC = ({ children }) => {
     if (docError) {
       const { doc, document, error, meta } = docError
       let { editorContent } = docError
-      const message = typeof error === 'string' ? error : error?.message ?? ''
+      const message = typeof error === 'string' ? error : (error?.message ?? '')
 
       // Clear document error so that it's only handled once
       setDocError(null)
 
       if (message.includes('maxDocLength')) {
         openDoc(doc, { forceReopen: true })
-        showGenericMessageModal(
-          t('document_too_long'),
-          t('document_too_long_detail')
-        )
+        const hasTrackedDeletes =
+          document.ranges != null &&
+          document.ranges.changes.some(change => 'd' in change.op)
+        const explanation = hasTrackedDeletes
+          ? `${t('document_too_long_detail')} ${t('document_too_long_tracked_deletes')}`
+          : t('document_too_long_detail')
+
+        showGenericMessageModal(t('document_too_long'), explanation)
         setDocTooLongErrorShown(true)
       } else if (/too many comments or tracked changes/.test(message)) {
         showGenericMessageModal(

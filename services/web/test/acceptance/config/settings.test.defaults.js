@@ -17,6 +17,8 @@ module.exports = {
   secureCookie: false,
   security: {
     sessionSecret: 'static-secret-for-tests',
+    sessionSecretUpcoming: 'static-secret-upcoming-for-tests',
+    sessionSecretFallback: 'static-secret-fallback-for-tests',
   },
   adminDomains: process.env.ADMIN_DOMAINS
     ? JSON.parse(process.env.ADMIN_DOMAINS)
@@ -103,7 +105,6 @@ module.exports = {
       versioning: false,
       github: true,
       gitBridge: true,
-      templates: false,
       references: false,
       referencesSearch: false,
       mendeley: true,
@@ -119,7 +120,6 @@ module.exports = {
       versioning: false,
       github: false,
       gitBridge: false,
-      templates: false,
       references: false,
       referencesSearch: false,
       mendeley: false,
@@ -135,7 +135,6 @@ module.exports = {
       versioning: true,
       github: true,
       gitBridge: true,
-      templates: true,
       references: true,
       referencesSearch: true,
       mendeley: true,
@@ -151,7 +150,6 @@ module.exports = {
       versioning: true,
       github: true,
       gitBridge: true,
-      templates: true,
       references: true,
       referencesSearch: true,
       mendeley: true,
@@ -258,10 +256,8 @@ module.exports = {
     counterInit: 0,
   },
 
-  splitTest: {
-    devToolbar: {
-      enabled: false,
-    },
+  devToolbar: {
+    enabled: false,
   },
 }
 

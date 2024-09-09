@@ -1,7 +1,7 @@
 const SandboxedModule = require('sandboxed-module')
 const { expect } = require('chai')
 const sinon = require('sinon')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 
 const MODULE_PATH = '../../../../app/src/Features/Subscription/FeaturesUpdater'
 
@@ -93,7 +93,7 @@ describe('FeaturesUpdater', function () {
       .resolves(this.user)
 
     this.AnalyticsManager = {
-      setUserPropertyForUser: sinon.stub(),
+      setUserPropertyForUserInBackground: sinon.stub(),
     }
     this.Modules = {
       promises: { hooks: { fire: sinon.stub().resolves() } },
@@ -141,7 +141,7 @@ describe('FeaturesUpdater', function () {
 
       it('should send the corresponding feature set user property', function () {
         expect(
-          this.AnalyticsManager.setUserPropertyForUser
+          this.AnalyticsManager.setUserPropertyForUserInBackground
         ).to.have.been.calledWith(this.user._id, 'feature-set', 'all')
       })
     })
@@ -159,7 +159,7 @@ describe('FeaturesUpdater', function () {
 
       it('should send mixed feature set user property', function () {
         sinon.assert.calledWith(
-          this.AnalyticsManager.setUserPropertyForUser,
+          this.AnalyticsManager.setUserPropertyForUserInBackground,
           this.user._id,
           'feature-set',
           'mixed'

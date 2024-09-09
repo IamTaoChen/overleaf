@@ -3,7 +3,7 @@ const sinon = require('sinon')
 const { expect } = require('chai')
 const PrivilegeLevels = require('../../../../app/src/Features/Authorization/PrivilegeLevels')
 const Errors = require('../../../../app/src/Features/Errors/Errors')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 
 const MODULE_PATH =
   '../../../../app/src/Features/Collaborators/OwnershipTransferHandler'
@@ -74,7 +74,8 @@ describe('OwnershipTransferHandler', function () {
         '../Email/EmailHandler': this.EmailHandler,
         './CollaboratorsHandler': this.CollaboratorsHandler,
         '../Analytics/AnalyticsManager': {
-          recordEventForUser: (this.recordEventForUser = sinon.stub()),
+          recordEventForUserInBackground: (this.recordEventForUserInBackground =
+            sinon.stub()),
         },
       },
     })
@@ -214,7 +215,7 @@ describe('OwnershipTransferHandler', function () {
         this.collaborator._id,
         { sessionUserId }
       )
-      expect(this.recordEventForUser).to.have.been.calledWith(
+      expect(this.recordEventForUserInBackground).to.have.been.calledWith(
         this.user._id,
         'project-ownership-transfer',
         {

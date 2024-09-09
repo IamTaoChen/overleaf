@@ -30,3 +30,27 @@ hr {
 .horizontal-divider {
   border-top: 1px solid var(--border-divider);
 }
+
+.hidden {
+  @extend .d-none;
+}
+
+.hidden-print {
+  @extend .d-print-none;
+}
+
+.row-spaced {
+  margin-top: var(--line-height-03);
+}
+
+.row-spaced-small {
+  margin-top: calc(var(--line-height-03) / 2);
+}
+
+.row-spaced-large {
+  margin-top: calc(var(--line-height-03) * 2);
+}
+
+.row-spaced-extra-large {
+  margin-top: calc(var(--line-height-03) * 4);
+}

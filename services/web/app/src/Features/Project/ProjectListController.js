@@ -117,7 +117,7 @@ async function projectListPage(req, res, next) {
   })
   const user = await User.findById(
     userId,
-    `email emails features alphaProgram betaProgram lastPrimaryEmailCheck signUpDate${
+    `email emails features alphaProgram betaProgram lastPrimaryEmailCheck labsProgram signUpDate${
       isSaas ? ' enrollment writefull' : ''
     }`
   )
@@ -169,6 +169,16 @@ async function projectListPage(req, res, next) {
 
     if (user && UserPrimaryEmailCheckHandler.requiresPrimaryEmailCheck(user)) {
       return res.redirect('/user/emails/primary-email-check')
+    }
+  } else {
+    if (!process.env.OVERLEAF_IS_SERVER_PRO) {
+      // temporary survey for CE: https://github.com/overleaf/internal/issues/19710
+      survey = {
+        name: 'ce-survey',
+        preText: 'Help us improve Overleaf',
+        linkText: 'by filling out this quick survey',
+        url: 'https://docs.google.com/forms/d/e/1FAIpQLSdPAS-731yaLOvRM8HW7j6gVeOpcmB_X5A5qwgNJT7Oj09lLA/viewform?usp=sf_link',
+      }
     }
   }
 
@@ -352,7 +362,7 @@ async function projectListPage(req, res, next) {
 
   const groupsAndEnterpriseBannerVariant =
     showGroupsAndEnterpriseBanner &&
-    _.sample(['did-you-know', 'on-premise', 'people', 'FOMO'])
+    _.sample(['on-premise', 'FOMO', 'FOMO', 'FOMO'])
 
   let showWritefullPromoBanner = false
   if (Features.hasFeature('saas') && !req.session.justRegistered) {
@@ -415,22 +425,6 @@ async function projectListPage(req, res, next) {
     logger.error({ err: error }, 'Failed to get individual subscription')
   }
 
-  let newNotificationStyle
-  try {
-    const newNotificationStyleAssignment =
-      await SplitTestHandler.promises.getAssignment(
-        req,
-        res,
-        'new-notification-style'
-      )
-    newNotificationStyle = newNotificationStyleAssignment.variant === 'enabled'
-  } catch (error) {
-    logger.error(
-      { err: error },
-      'failed to get "new-notification-style" split test assignment'
-    )
-  }
-
   try {
     await SplitTestHandler.promises.getAssignment(req, res, 'paywall-cta')
   } catch (error) {
@@ -439,6 +433,15 @@ async function projectListPage(req, res, next) {
       'failed to get "paywall-cta" split test assignment'
     )
   }
+
+  // Get the user's assignment for this page's Bootstrap 5 split test, which
+  // populates splitTestVariants with a value for the split test name and allows
+  // Pug to read it
+  await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'bootstrap-5-project-dashboard'
+  )
 
   res.render('project/list-react', {
     title: 'your_projects',
@@ -469,7 +472,7 @@ async function projectListPage(req, res, next) {
         groupName: subscription.teamName,
       })),
     hasIndividualRecurlySubscription,
-    newNotificationStyle,
+    userRestrictions: Array.from(req.userRestrictions || []),
   })
 }
 

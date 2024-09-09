@@ -1,3 +1,4 @@
+import '../../helpers/bootstrap-3'
 import TokenAccessPage from '@/features/token-access/components/token-access-root'
 import { location } from '@/shared/components/location'
 
@@ -7,10 +8,8 @@ describe('<TokenAccessPage/>', function () {
 
   beforeEach(function () {
     cy.window().then(win => {
-      win.metaAttributesCache = new Map<string, any>([
-        ['ol-postUrl', url],
-        ['ol-user', { email: 'test@example.com' }],
-      ])
+      win.metaAttributesCache.set('ol-postUrl', url)
+      win.metaAttributesCache.set('ol-user', { email: 'test@example.com' })
     })
   })
 

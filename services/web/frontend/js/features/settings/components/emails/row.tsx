@@ -8,13 +8,11 @@ import Actions from './actions'
 import { institutionAlreadyLinked } from '../../utils/selectors'
 import { useUserEmailsContext } from '../../context/user-email-context'
 import getMeta from '../../../../utils/meta'
-import { ExposedSettings } from '../../../../../../types/exposed-settings'
 import { ssoAvailableForInstitution } from '../../utils/sso'
 import ReconfirmationInfo from './reconfirmation-info'
 import { useLocation } from '../../../../shared/hooks/use-location'
 import OLRow from '@/features/ui/components/ol/ol-row'
 import OLCol from '@/features/ui/components/ol/ol-col'
-import { bsVersion } from '@/features/utils/bootstrap-5'
 import OLButton from '@/features/ui/components/ol/ol-button'
 
 type EmailsRowProps = {
@@ -30,25 +28,20 @@ function EmailsRow({ userEmailData }: EmailsRowProps) {
   return (
     <>
       <OLRow>
-        <OLCol md={4}>
+        <OLCol lg={4}>
           <EmailCell>
             <Email userEmailData={userEmailData} />
           </EmailCell>
         </OLCol>
-        <OLCol md={5}>
+        <OLCol lg={5}>
           {userEmailData.affiliation?.institution && (
             <EmailCell>
               <InstitutionAndRole userEmailData={userEmailData} />
             </EmailCell>
           )}
         </OLCol>
-        <OLCol md={3}>
-          <EmailCell
-            className={bsVersion({
-              bs5: 'text-md-end',
-              bs3: 'text-md-right',
-            })}
-          >
+        <OLCol lg={3}>
+          <EmailCell className="text-lg-end">
             <Actions userEmailData={userEmailData} />
           </EmailCell>
         </OLCol>
@@ -67,7 +60,7 @@ type SSOAffiliationInfoProps = {
 }
 
 function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
-  const { samlInitPath } = getMeta('ol-ExposedSettings') as ExposedSettings
+  const { samlInitPath } = getMeta('ol-ExposedSettings')
   const { t } = useTranslation()
   const { state } = useUserEmailsContext()
   const location = useLocation()
@@ -94,7 +87,7 @@ function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
   if (userEmailData.samlProviderId) {
     return (
       <OLRow>
-        <OLCol md={{ span: 8, offset: 4 }}>
+        <OLCol lg={{ span: 8, offset: 4 }}>
           <EmailCell>
             <p>
               <Trans
@@ -118,10 +111,10 @@ function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
 
   return (
     <OLRow>
-      <OLCol md={{ span: 8, offset: 4 }}>
+      <OLCol lg={{ span: 8, offset: 4 }}>
         <div className="horizontal-divider" />
         <OLRow>
-          <OLCol md={9}>
+          <OLCol lg={9}>
             <EmailCell>
               <p className="small">
                 <Trans
@@ -152,13 +145,7 @@ function SSOAffiliationInfo({ userEmailData }: SSOAffiliationInfoProps) {
               </p>
             </EmailCell>
           </OLCol>
-          <OLCol
-            md={3}
-            className={bsVersion({
-              bs5: 'text-md-end',
-              bs3: 'text-md-right',
-            })}
-          >
+          <OLCol lg={3} className="text-lg-end">
             <EmailCell>
               <OLButton
                 variant="primary"

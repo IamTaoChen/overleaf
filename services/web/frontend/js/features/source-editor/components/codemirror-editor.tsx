@@ -18,7 +18,8 @@ import { dispatchTimer } from '../../../infrastructure/cm6-performance'
 
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import { FigureModal } from './figure-modal/figure-modal'
-import ReviewPanel from './review-panel/review-panel'
+import { ReviewPanelProviders } from '@/features/review-panel-new/context/review-panel-providers'
+import { ReviewPanelMigration } from '@/features/source-editor/components/review-panel/review-panel-migration'
 
 const sourceEditorComponents = importOverleafModules(
   'sourceEditorComponents'
@@ -41,6 +42,9 @@ function CodeMirrorEditor() {
   if (viewRef.current === null) {
     const timer = dispatchTimer()
 
+    // @ts-ignore (disable EditContext-based editing until stable)
+    EditorView.EDIT_CONTEXT = false
+
     const view = new EditorView({
       state,
       dispatchTransactions: trs => {
@@ -58,23 +62,26 @@ function CodeMirrorEditor() {
   return (
     <CodeMirrorStateContext.Provider value={state}>
       <CodeMirrorViewContextProvider value={viewRef.current}>
-        <CodemirrorOutline />
-        <CodeMirrorView />
-        <FigureModal />
-        <CodeMirrorSearch />
-        <CodeMirrorToolbar />
-        {sourceEditorToolbarComponents.map(
-          ({ import: { default: Component }, path }) => (
-            <Component key={path} />
-          )
-        )}
-        <CodeMirrorCommandTooltip />
-        <ReviewPanel />
-        {sourceEditorComponents.map(
-          ({ import: { default: Component }, path }) => (
-            <Component key={path} />
-          )
-        )}
+        <ReviewPanelProviders>
+          <CodemirrorOutline />
+          <CodeMirrorView />
+          <FigureModal />
+          <CodeMirrorSearch />
+          <CodeMirrorToolbar />
+          {sourceEditorToolbarComponents.map(
+            ({ import: { default: Component }, path }) => (
+              <Component key={path} />
+            )
+          )}
+          <CodeMirrorCommandTooltip />
+
+          <ReviewPanelMigration />
+          {sourceEditorComponents.map(
+            ({ import: { default: Component }, path }) => (
+              <Component key={path} />
+            )
+          )}
+        </ReviewPanelProviders>
       </CodeMirrorViewContextProvider>
     </CodeMirrorStateContext.Provider>
   )

@@ -747,7 +747,7 @@ span.plans-v2-license-picker-educational-discount-learn-more-container {
 
   @media (min-width: @screen-sm-min) {
     // highlight rows on hover
-    tr:not(.plans-v2-table-divider):hover {
+    tr:not(.plans-v2-table-divider):not(:first-child):hover {
       background-color: @table-hover-bg;
 
       .plans-v2-table-feature-name,
@@ -990,7 +990,7 @@ p.plans-v2-table-price {
   }
 }
 
-strike.plans-v2-table-price-before-discount {
+s.plans-v2-table-price-before-discount {
   position: absolute;
   top: -27px;
   font-weight: 700;
@@ -1287,4 +1287,12 @@ p.plans-v2-table-green-highlighted-text {
   @media (max-width: @screen-xs-max) {
     padding: @padding-lg;
   }
+}
+
+.plans-page-quote-row {
+  margin: var(--spacing-13) 0;
+}
+
+.plans-page-quote-row-hidden {
+  display: none;
 }

@@ -5,7 +5,6 @@ import {
   postJSON,
 } from '../../../infrastructure/fetch-json'
 import getMeta from '../../../utils/meta'
-import { ExposedSettings } from '../../../../../types/exposed-settings'
 import useAsync from '../../../shared/hooks/use-async'
 import { useUserContext } from '../../../shared/context/user-context'
 import OLButton from '@/features/ui/components/ol/ol-button'
@@ -17,15 +16,11 @@ import FormText from '@/features/ui/components/bootstrap-5/form/form-text'
 
 function AccountInfoSection() {
   const { t } = useTranslation()
-  const { hasAffiliationsFeature } = getMeta(
-    'ol-ExposedSettings'
-  ) as ExposedSettings
+  const { hasAffiliationsFeature } = getMeta('ol-ExposedSettings')
   const isExternalAuthenticationSystemUsed = getMeta(
     'ol-isExternalAuthenticationSystemUsed'
-  ) as boolean
-  const shouldAllowEditingDetails = getMeta(
-    'ol-shouldAllowEditingDetails'
-  ) as boolean
+  )
+  const shouldAllowEditingDetails = getMeta('ol-shouldAllowEditingDetails')
   const {
     first_name: initialFirstName,
     last_name: initialLastName,
@@ -123,18 +118,20 @@ function AccountInfoSection() {
           </OLFormGroup>
         ) : null}
         {canUpdateEmail || canUpdateNames ? (
-          <OLButton
-            type="submit"
-            variant="primary"
-            form="account-info-form"
-            disabled={!isFormValid}
-            isLoading={isLoading}
-            bs3Props={{
-              loading: isLoading ? `${t('saving')}…` : t('update'),
-            }}
-          >
-            {t('update')}
-          </OLButton>
+          <OLFormGroup>
+            <OLButton
+              type="submit"
+              variant="primary"
+              form="account-info-form"
+              disabled={!isFormValid}
+              isLoading={isLoading}
+              bs3Props={{
+                loading: isLoading ? `${t('saving')}…` : t('update'),
+              }}
+            >
+              {t('update')}
+            </OLButton>
+          </OLFormGroup>
         ) : null}
       </form>
     </>
@@ -193,7 +190,9 @@ function ReadOrWriteFormGroup({
         onChange={handleChangeAndValidity}
         onInvalid={handleInvalid}
       />
-      {validationMessage && <FormText isError>{validationMessage}</FormText>}
+      {validationMessage && (
+        <FormText type="error">{validationMessage}</FormText>
+      )}
     </OLFormGroup>
   )
 }

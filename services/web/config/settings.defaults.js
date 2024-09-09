@@ -1,32 +1,5 @@
-const fs = require('fs')
 const Path = require('path')
 const { merge } = require('@overleaf/settings/merge')
-
-// Automatically detect module imports that are included in this version of the application (SaaS, Server-CE, Server Pro).
-// E.g. during a Server-CE build, we will not find imports for proprietary modules.
-//
-// Restart webpack after adding/removing modules.
-const MODULES_PATH = Path.join(__dirname, '../modules')
-const entryPointsIde = []
-const entryPointsMain = []
-fs.readdirSync(MODULES_PATH).forEach(module => {
-  const entryPathIde = Path.join(
-    MODULES_PATH,
-    module,
-    '/frontend/js/ide/index.js'
-  )
-  if (fs.existsSync(entryPathIde)) {
-    entryPointsIde.push(entryPathIde)
-  }
-  const entryPathMain = Path.join(
-    MODULES_PATH,
-    module,
-    '/frontend/js/main/index.js'
-  )
-  if (fs.existsSync(entryPathMain)) {
-    entryPointsMain.push(entryPathMain)
-  }
-})
 
 let defaultFeatures, siteUrl
 
@@ -42,8 +15,6 @@ const httpAuthUsers = {}
 if (httpAuthUser && httpAuthPass) {
   httpAuthUsers[httpAuthUser] = httpAuthPass
 }
-
-const sessionSecret = process.env.SESSION_SECRET
 
 const intFromEnv = function (name, defaultValue) {
   if (
@@ -113,7 +84,6 @@ const httpPermissionsPolicy = {
     'camera',
     'display-capture',
     'encrypted-media',
-    'fullscreen',
     'gamepad',
     'geolocation',
     'gyroscope',
@@ -136,6 +106,7 @@ const httpPermissionsPolicy = {
   ],
   allowed: {
     autoplay: 'self "https://videos.ctfassets.net"',
+    fullscreen: 'self',
   },
 }
 
@@ -318,10 +289,8 @@ module.exports = {
     algorithm: process.env.OT_JWT_AUTH_ALG || 'HS256',
   },
 
-  splitTest: {
-    devToolbar: {
-      enabled: false,
-    },
+  devToolbar: {
+    enabled: false,
   },
 
   splitTests: [],
@@ -386,7 +355,9 @@ module.exports = {
   // Security
   // --------
   security: {
-    sessionSecret,
+    sessionSecret: process.env.SESSION_SECRET,
+    sessionSecretUpcoming: process.env.SESSION_SECRET_UPCOMING,
+    sessionSecretFallback: process.env.SESSION_SECRET_FALLBACK,
     bcryptRounds: parseInt(process.env.BCRYPT_ROUNDS, 10) || 12,
   }, // number of rounds used to hash user passwords (raised to power 2)
 
@@ -412,7 +383,6 @@ module.exports = {
     compileTimeout: 180,
     compileGroup: 'standard',
     references: true,
-    templates: true,
     trackChanges: true,
   }),
 
@@ -757,6 +727,10 @@ module.exports = {
       everyone: process.env.RATE_LIMIT_AUTO_COMPILE_EVERYONE || 100,
       standard: process.env.RATE_LIMIT_AUTO_COMPILE_STANDARD || 25,
     },
+    login: {
+      ip: { points: 20, subnetPoints: 200, duration: 60 },
+      email: { points: 10, duration: 120 },
+    },
   },
 
   analytics: {
@@ -852,6 +826,7 @@ module.exports = {
           h4: ['class', 'id'],
           h5: ['class', 'id'],
           h6: ['class', 'id'],
+          p: ['class'],
           col: ['width'],
           figure: ['class', 'id', 'style'],
           figcaption: ['class', 'id', 'style'],
@@ -899,16 +874,21 @@ module.exports = {
     tprFileViewRefreshError: [],
     tprFileViewRefreshButton: [],
     tprFileViewNotOriginalImporter: [],
+    newFilePromotions: [],
     contactUsModal: [],
     editorToolbarButtons: [],
     sourceEditorExtensions: [],
     sourceEditorComponents: [],
     pdfLogEntryComponents: [],
+    pdfLogEntriesComponents: [],
+    pdfPreviewPromotions: [],
+    diagnosticActions: [],
     sourceEditorCompletionSources: [],
     sourceEditorSymbolPalette: [],
     sourceEditorToolbarComponents: [],
-    writefullEditorPromotion: [],
+    editorPromotions: [],
     langFeedbackLinkingWidgets: [],
+    labsExperiments: [],
     integrationLinkingWidgets: [],
     referenceLinkingWidgets: [],
     importProjectFromGithubModalWrapper: [],
@@ -917,11 +897,12 @@ module.exports = {
     editorLeftMenuManageTemplate: [],
     oauth2Server: [],
     managedGroupSubscriptionEnrollmentNotification: [],
+    userNotifications: [],
     managedGroupEnrollmentInvite: [],
     ssoCertificateInfo: [],
-    // See comment at the definition of these variables.
-    entryPointsIde,
-    entryPointsMain,
+    v1ImportDataScreen: [],
+    snapshotUtils: [],
+    offlineModeToolbarButtons: [],
   },
 
   moduleImportSequence: [
@@ -930,13 +911,14 @@ module.exports = {
     'server-ce-scripts',
     'user-activate',
   ],
+  viewIncludes: {},
 
   csp: {
     enabled: process.env.CSP_ENABLED === 'true',
     reportOnly: process.env.CSP_REPORT_ONLY === 'true',
     reportPercentage: parseFloat(process.env.CSP_REPORT_PERCENTAGE) || 0,
     reportUri: process.env.CSP_REPORT_URI,
-    exclude: ['app/views/project/editor'],
+    exclude: [],
   },
 
   unsupportedBrowsers: {

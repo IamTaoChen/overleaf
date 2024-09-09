@@ -50,8 +50,7 @@ export function setDefaultMeta() {
       linkPath: '/auth/orcid',
     },
   })
-  window.metaAttributesCache.delete('integrationLinkingWidgets')
-  window.metaAttributesCache.delete('referenceLinkingWidgets')
+  window.metaAttributesCache.set('ol-hideLinkingWidgets', true)
   window.metaAttributesCache.delete('ol-ssoErrorMessage')
 }
 
@@ -76,5 +75,4 @@ export function setPersonalAccessTokensMeta() {
   }
 
   window.metaAttributesCache.set('ol-personalAccessTokens', tokens)
-  window.metaAttributesCache.set('ol-showPersonalAccessToken', true)
 }

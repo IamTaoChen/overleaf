@@ -111,7 +111,7 @@ function InstitutionAndRole({ userEmailData }: InstitutionAndRoleProps) {
           <OLButton
             onClick={handleChangeAffiliation}
             variant="link"
-            bs3Props={{ className: 'btn-inline-link' }}
+            className="btn-inline-link"
           >
             {!affiliation.department && !affiliation.role
               ? t('add_role_and_department')
@@ -141,7 +141,6 @@ function InstitutionAndRole({ userEmailData }: InstitutionAndRoleProps) {
               />
             </OLFormGroup>
             <OLButton
-              size="small"
               variant="primary"
               type="submit"
               disabled={!role || !department}
@@ -160,7 +159,7 @@ function InstitutionAndRole({ userEmailData }: InstitutionAndRoleProps) {
                 <OLButton
                   variant="link"
                   onClick={handleCancelAffiliationChange}
-                  bs3Props={{ className: 'btn-inline-link' }}
+                  className="btn-inline-link"
                 >
                   {t('save_or_cancel-cancel')}
                 </OLButton>

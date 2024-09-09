@@ -66,44 +66,20 @@ async function settingsPage(req, res) {
     // The user has just deleted their account.
     return UserSessionsManager.removeSessionsFromRedis(
       { _id: userId },
-      req,
-      { stayLoggedIn: false },
+      null,
       () => res.redirect('/')
     )
   }
 
-  const showPersonalAccessToken =
-    !Features.hasFeature('saas') || req.query?.personal_access_token === 'true'
-
-  // if not already enabled, use a split test to determine whether to offer personal access tokens
-  let optionalPersonalAccessToken = false
-  if (!showPersonalAccessToken) {
-    const { variant } = await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'personal-access-token'
-    )
-    optionalPersonalAccessToken = variant === 'enabled' // `?personal-access-token=enabled`
-  }
-
-  // getAssignment sets res.locals, which will pass to the splitTest context
-  await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'writefull-oauth-promotion'
-  )
-
   let personalAccessTokens
-  if (showPersonalAccessToken || optionalPersonalAccessToken) {
-    try {
-      // require this here because module may not be included in some versions
-      const PersonalAccessTokenManager = require('../../../../modules/oauth2-server/app/src/OAuthPersonalAccessTokenManager')
-      personalAccessTokens = await PersonalAccessTokenManager.listTokens(
-        user._id
-      )
-    } catch (error) {
-      logger.error(OError.tag(error))
-    }
+  try {
+    const results = await Modules.promises.hooks.fire(
+      'listPersonalAccessTokens',
+      user._id
+    )
+    personalAccessTokens = results?.[0] ?? []
+  } catch (error) {
+    logger.error(OError.tag(error))
   }
 
   let currentManagedUserAdminEmail
@@ -116,14 +92,15 @@ async function settingsPage(req, res) {
 
   let memberOfSSOEnabledGroups = []
   try {
-    memberOfSSOEnabledGroups = (
-      await Modules.promises.hooks.fire(
-        'getUserGroupsSSOEnrollmentStatus',
-        user._id,
-        { teamName: 1 },
-        ['email']
-      )
-    )?.[0]
+    memberOfSSOEnabledGroups =
+      (
+        await Modules.promises.hooks.fire(
+          'getUserGroupsSSOEnrollmentStatus',
+          user._id,
+          { teamName: 1 },
+          ['email']
+        )
+      )?.[0] || []
     memberOfSSOEnabledGroups = memberOfSSOEnabledGroups.map(group => {
       return {
         groupId: group._id.toString(),
@@ -139,8 +116,9 @@ async function settingsPage(req, res) {
     )
   }
 
-  // Get the user's assignment for the Bootstrap 5 split test, which populates
-  // splitTestVariants with a value for 'bootstrap-5' and allows Pug to read it
+  // Get the user's assignment for this page's Bootstrap 5 split test, which
+  // populates splitTestVariants with a value for the split test name and allows
+  // Pug to read it
   await SplitTestHandler.promises.getAssignment(req, res, 'bootstrap-5')
 
   res.render('user/settings', {
@@ -188,8 +166,6 @@ async function settingsPage(req, res) {
     ssoErrorMessage,
     thirdPartyIds: UserPagesController._restructureThirdPartyIds(user),
     projectSyncSuccessMessage,
-    showPersonalAccessToken,
-    optionalPersonalAccessToken,
     personalAccessTokens,
     emailAddressLimit: Settings.emailAddressLimit,
     isManagedAccount: !!req.managedBy,

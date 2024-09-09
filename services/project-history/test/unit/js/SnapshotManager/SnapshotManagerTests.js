@@ -479,7 +479,7 @@ Four five six\
     })
   })
 
-  describe('getLatestSnapshot', function () {
+  describe('getLatestSnapshotFiles', function () {
     describe('for a project', function () {
       beforeEach(async function () {
         this.HistoryStoreManager.promises.getMostRecentChunk.resolves({
@@ -543,7 +543,7 @@ Four five six\
           )),
           getObject: sinon.stub().rejects(),
         })
-        this.data = await this.SnapshotManager.promises.getLatestSnapshot(
+        this.data = await this.SnapshotManager.promises.getLatestSnapshotFiles(
           this.projectId,
           this.historyId
         )
@@ -571,7 +571,7 @@ Four five six\
       beforeEach(async function () {
         this.HistoryStoreManager.promises.getMostRecentChunk.resolves(null)
         expect(
-          this.SnapshotManager.promises.getLatestSnapshot(
+          this.SnapshotManager.promises.getLatestSnapshotFiles(
             this.projectId,
             this.historyId
           )
@@ -757,6 +757,7 @@ Four five six\
               ],
               resolved: false,
             },
+            { id: 'comment-2', ranges: [], resolved: true },
           ],
         })
         this.data = await this.SnapshotManager.promises.getRangesSnapshot(
@@ -779,6 +780,25 @@ Four five six\
       it('should remove overlapping text at end of comment', function () {
         expect(this.data.comments[2].op.p).to.eq(20)
         expect(this.data.comments[2].op.c).to.eq('ov')
+      })
+
+      it('should put resolved status in op', function () {
+        expect(this.data.comments[0].op.resolved).to.be.false
+        expect(this.data.comments[1].op.resolved).to.be.false
+        expect(this.data.comments[2].op.resolved).to.be.false
+        expect(this.data.comments[3].op.resolved).to.be.true
+      })
+
+      it('should include thread id', function () {
+        expect(this.data.comments[0].op.t).to.eq('comment-1')
+        expect(this.data.comments[1].op.t).to.eq('comment-1')
+        expect(this.data.comments[2].op.t).to.eq('comment-1')
+        expect(this.data.comments[3].op.t).to.eq('comment-2')
+      })
+
+      it('should translated detached comment to zero length op', function () {
+        expect(this.data.comments[3].op.p).to.eq(0)
+        expect(this.data.comments[3].op.c).to.eq('')
       })
     })
 
@@ -919,6 +939,7 @@ Four five six\
                 c: '',
                 p: 4,
                 t: 'comment-1',
+                resolved: false,
               },
             },
             {
@@ -926,6 +947,7 @@ Four five six\
                 c: 'brown',
                 p: 4,
                 t: 'comment-1',
+                resolved: false,
               },
             },
             {
@@ -933,6 +955,7 @@ Four five six\
                 c: '',
                 p: 29,
                 t: 'comment-1',
+                resolved: false,
               },
             },
             {
@@ -940,6 +963,7 @@ Four five six\
                 c: 'the',
                 p: 0,
                 t: 'comment-2',
+                resolved: true,
               },
             },
             {
@@ -947,11 +971,77 @@ Four five six\
                 c: 'the',
                 p: 25,
                 t: 'comment-2',
+                resolved: true,
               },
             },
           ],
         })
       })
+    })
+
+    describe('with an empty file', function () {
+      beforeEach(async function () {
+        this.getString.resolves('')
+        this.getObject.resolves({})
+        this.data = await this.SnapshotManager.promises.getRangesSnapshot(
+          this.projectId,
+          1,
+          'main.tex'
+        )
+      })
+
+      it('should return empty comments and changes', function () {
+        expect(this.data).to.deep.equal({
+          changes: [],
+          comments: [],
+        })
+      })
+    })
+  })
+
+  describe('getPathsAtVersion', function () {
+    beforeEach(function () {
+      this.WebApiManager.promises.getHistoryId.resolves(this.historyId)
+      this.HistoryStoreManager.promises.getChunkAtVersion.resolves({
+        chunk: (this.chunk = {
+          history: {
+            snapshot: {
+              files: {
+                'main.tex': {
+                  hash: (this.fileHash =
+                    '5d2781d78fa5a97b7bafa849fe933dfc9dc93eba'),
+                  rangesHash: (this.rangesHash =
+                    '73061952d41ce54825e2fc1c36b4cf736d5fb62f'),
+                  stringLength: 41,
+                },
+                'other.tex': {
+                  hash: (this.fileHash =
+                    'f572d396fae9206628714fb2ce00f72e94f2258f'),
+                  stringLength: 6,
+                },
+              },
+            },
+            changes: [],
+          },
+          startVersion: 4,
+          authors: [
+            {
+              id: 31,
+              email: 'author@example.com',
+              name: 'Author',
+            },
+          ],
+        }),
+      })
+    })
+
+    it('should return an array of paths', async function () {
+      const result = await this.SnapshotManager.promises.getPathsAtVersion(
+        this.projectId,
+        4
+      )
+      expect(result.paths).to.have.length(2)
+      expect(result.paths).to.include.members(['main.tex', 'other.tex'])
     })
   })
 })

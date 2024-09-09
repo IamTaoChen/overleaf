@@ -1,3 +1,6 @@
+import { HistoryRanges } from '../../../document-updater/app/js/types'
+import { LinkedFileData, RawOrigin } from 'overleaf-editor-core/lib/types'
+
 export type Update =
   | TextUpdate
   | AddDocUpdate
@@ -5,8 +8,15 @@ export type Update =
   | RenameUpdate
   | DeleteCommentUpdate
   | SetCommentStateUpdate
+  | SetFileMetadataOperation
   | ResyncProjectStructureUpdate
   | ResyncDocContentUpdate
+
+export type ProjectStructureUpdate =
+  | AddDocUpdate
+  | AddFileUpdate
+  | RenameUpdate
+  | SetFileMetadataOperation
 
 export type UpdateMeta = {
   user_id: string
@@ -36,6 +46,12 @@ export type SetCommentStateUpdate = {
   meta: UpdateMeta
 }
 
+export type SetFileMetadataOperation = {
+  pathname: string
+  meta: UpdateMeta
+  metadata: LinkedFileData | object
+}
+
 export type DeleteCommentUpdate = {
   pathname: string
   deleteComment: string
@@ -51,13 +67,16 @@ type ProjectUpdateBase = {
 
 export type AddDocUpdate = ProjectUpdateBase & {
   pathname: string
-  docLines: string[]
+  docLines: string
+  ranges?: HistoryRanges
 }
 
 export type AddFileUpdate = ProjectUpdateBase & {
   pathname: string
   file: string
   url: string
+  hash: string
+  metadata?: LinkedFileData
 }
 
 export type RenameUpdate = ProjectUpdateBase & {
@@ -81,7 +100,7 @@ export type ResyncDocContentUpdate = {
     content: string
     version: number
     ranges?: Ranges
-    resolvedComments?: string[]
+    resolvedCommentIds?: string[]
   }
   projectHistoryId: string
   path: string
@@ -97,7 +116,7 @@ export type RetainOp = {
   r: string
   p: number
   hpos?: number
-  tracking?: TrackingProps
+  tracking?: TrackingDirective
 }
 
 export type InsertOp = {
@@ -129,31 +148,35 @@ export type CommentOp = {
   t: string
   hpos?: number
   hlen?: number
+  resolved?: boolean
 }
 
-export type UpdateWithBlob = {
-  update: Update
-  blobHash: string
+export type UpdateWithBlob<T extends Update = Update> = {
+  update: T
+  blobHashes: T extends AddDocUpdate | AddFileUpdate
+    ? {
+        file: string
+        ranges?: string
+      }
+    : never
 }
 
-export type RawOrigin = {
-  kind: string
+export type TrackingProps = {
+  type: 'insert' | 'delete'
+  userId: string
+  ts: string
 }
 
-export type TrackingProps =
-  | { type: 'none' }
-  | {
-      type: 'insert' | 'delete'
-      userId: string
-      ts: string
-    }
+export type TrackingDirective = TrackingProps | { type: 'none' }
+
+export type TrackingType = 'insert' | 'delete' | 'none'
 
 export type RawScanOp =
   | number
   | string
-  | { r: number; tracking?: TrackingProps }
+  | { r: number; tracking?: TrackingDirective }
   | { i: string; tracking?: TrackingProps; commentIds?: string[] }
-  | { d: number; tracking?: TrackingProps }
+  | { d: number }
 
 export type TrackedChangeSnapshot = {
   op: {
@@ -170,6 +193,7 @@ export type CommentSnapshot = {
     p: number
     t: string
     c: string
+    resolved: boolean
   }
 }
 
@@ -187,6 +211,8 @@ export type File = {
   file: string
   url: string
   path: string
+  _hash: string
+  metadata?: LinkedFileData
 }
 
 export type Entity = Doc | File
@@ -207,9 +233,15 @@ export type Comment = {
 
 export type TrackedChange = {
   id: string
-  op: Op
+  op: InsertOp | DeleteOp
   metadata: {
     user_id: string
     ts: string
   }
+}
+
+export type TrackedChangeTransition = {
+  pos: number
+  tracking: TrackingDirective
+  stage: 'persisted' | 'expected'
 }

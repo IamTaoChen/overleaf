@@ -119,6 +119,7 @@ const EditorNavigationToolbarRoot = React.memo(
         hasPublishPermissions={
           permissionsLevel === 'owner' || permissionsLevel === 'readAndWrite'
         }
+        chatVisible={!isRestrictedTokenMember}
         projectName={projectName}
         renameProject={renameProject}
         hasRenamePermissions={permissionsLevel === 'owner'}

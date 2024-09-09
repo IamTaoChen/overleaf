@@ -2,20 +2,20 @@ import sinon from 'sinon'
 import { expect } from 'chai'
 import mongodb from 'mongodb-legacy'
 import tk from 'timekeeper'
-import { Comment, Range } from 'overleaf-editor-core'
+import { File, Comment, TrackedChange, Range } from 'overleaf-editor-core'
 import { strict as esmock } from 'esmock'
 const { ObjectId } = mongodb
 
 const MODULE_PATH = '../../../../app/js/SyncManager.js'
-
-const timestamp = new Date()
+const TIMESTAMP = new Date().toISOString()
+const USER_ID = 'user-id'
 
 function resyncProjectStructureUpdate(docs, files) {
   return {
     resyncProjectStructure: { docs, files },
 
     meta: {
-      ts: timestamp,
+      ts: TIMESTAMP,
     },
   }
 }
@@ -24,7 +24,7 @@ function docContentSyncUpdate(
   doc,
   content,
   ranges = {},
-  resolvedComments = []
+  resolvedCommentIds = []
 ) {
   return {
     path: doc.path,
@@ -33,11 +33,11 @@ function docContentSyncUpdate(
     resyncDocContent: {
       content,
       ranges,
-      resolvedComments,
+      resolvedCommentIds,
     },
 
     meta: {
-      ts: timestamp,
+      ts: TIMESTAMP,
     },
   }
 }
@@ -46,9 +46,18 @@ function makeComment(commentId, pos, text) {
   return {
     id: commentId,
     op: { p: pos, c: text, t: commentId },
-    meta: {
-      ts: timestamp,
+    metadata: {
+      user_id: USER_ID,
+      ts: TIMESTAMP,
     },
+  }
+}
+
+function makeTrackedChange(id, op) {
+  return {
+    id,
+    op,
+    metadata: { user_id: USER_ID, ts: TIMESTAMP },
   }
 }
 
@@ -105,7 +114,7 @@ describe('SyncManager', function () {
 
     this.SnapshotManager = {
       promises: {
-        getLatestSnapshot: sinon.stub(),
+        getLatestSnapshotFiles: sinon.stub(),
       },
     }
 
@@ -476,30 +485,25 @@ describe('SyncManager', function () {
         doc: 'doc-id',
         path: 'main.tex',
       }
-      this.persistedDocContent = 'the quick brown fox jumps over the lazy fox'
+      this.persistedDocContent = 'the quick brown fox jumps over the lazy dog'
       this.persistedFile = {
         file: 'file-id',
         path: '1.png',
         _hash: 'abcde',
       }
-      this.loadedSnapshotDoc = {
-        isEditable: sinon.stub().returns(true),
-        getContent: sinon.stub().returns(this.persistedDocContent),
-        getComments: sinon
-          .stub()
-          .returns({ toArray: sinon.stub().returns([]) }),
-        getHash: sinon.stub().returns(null),
-      }
+      this.loadedSnapshotDoc = File.fromString(this.persistedDocContent)
       this.fileMap = {
         'main.tex': {
           isEditable: sinon.stub().returns(true),
           getContent: sinon.stub().returns(null),
           getHash: sinon.stub().returns(null),
           load: sinon.stub().resolves(this.loadedSnapshotDoc),
+          getMetadata: sinon.stub().returns({}),
         },
         '1.png': {
           isEditable: sinon.stub().returns(false),
           data: { hash: this.persistedFile._hash },
+          getMetadata: sinon.stub().returns({}),
         },
       }
       this.UpdateTranslator._convertPathname
@@ -513,7 +517,9 @@ describe('SyncManager', function () {
         .returns('another.tex')
       this.UpdateTranslator._convertPathname.withArgs('1.png').returns('1.png')
       this.UpdateTranslator._convertPathname.withArgs('2.png').returns('2.png')
-      this.SnapshotManager.promises.getLatestSnapshot.resolves(this.fileMap)
+      this.SnapshotManager.promises.getLatestSnapshotFiles.resolves(
+        this.fileMap
+      )
     })
 
     it('returns updates if no sync updates are queued', async function () {
@@ -526,8 +532,8 @@ describe('SyncManager', function () {
       )
 
       expect(expandedUpdates).to.equal(updates)
-      expect(this.SnapshotManager.promises.getLatestSnapshot).to.not.have.been
-        .called
+      expect(this.SnapshotManager.promises.getLatestSnapshotFiles).to.not.have
+        .been.called
       expect(this.extendLock).to.not.have.been.called
     })
 
@@ -566,7 +572,7 @@ describe('SyncManager', function () {
             new_pathname: '',
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -590,7 +596,7 @@ describe('SyncManager', function () {
             new_pathname: '',
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -598,11 +604,12 @@ describe('SyncManager', function () {
         expect(this.extendLock).to.have.been.called
       })
 
-      it('queues file additions for missing files', async function () {
+      it('queues file additions for missing regular files', async function () {
         const newFile = {
           path: '2.png',
           file: {},
           url: 'filestore/2.png',
+          _hash: 'hash-42',
         }
         const updates = [
           resyncProjectStructureUpdate(
@@ -623,9 +630,56 @@ describe('SyncManager', function () {
             pathname: newFile.path,
             file: newFile.file,
             url: newFile.url,
+            hash: 'hash-42',
+            metadata: undefined,
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+        ])
+        expect(this.extendLock).to.have.been.called
+      })
+
+      it('queues file additions for missing linked files', async function () {
+        const newFile = {
+          path: '2.png',
+          file: {},
+          url: 'filestore/2.png',
+          metadata: {
+            importedAt: '2024-07-30T09:14:45.928Z',
+            provider: 'references-provider',
+          },
+          _hash: 'hash-42',
+        }
+        const updates = [
+          resyncProjectStructureUpdate(
+            [this.persistedDoc],
+            [this.persistedFile, newFile]
+          ),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+
+        expect(expandedUpdates).to.deep.equal([
+          {
+            pathname: newFile.path,
+            file: newFile.file,
+            url: newFile.url,
+            hash: 'hash-42',
+            metadata: {
+              importedAt: '2024-07-30T09:14:45.928Z',
+              provider: 'references-provider',
+            },
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -659,7 +713,7 @@ describe('SyncManager', function () {
             docLines: '',
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -694,7 +748,7 @@ describe('SyncManager', function () {
             new_pathname: '',
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -702,9 +756,190 @@ describe('SyncManager', function () {
             pathname: fileWichWasADoc.path,
             file: fileWichWasADoc.file,
             url: fileWichWasADoc.url,
+            hash: 'other-hash',
+            metadata: undefined,
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+        ])
+        expect(this.extendLock).to.have.been.called
+      })
+
+      it('removes and re-adds linked-files if their binary state differs', async function () {
+        const fileWhichWasADoc = {
+          path: this.persistedDoc.path,
+          url: 'filestore/references.txt',
+          _hash: 'other-hash',
+          metadata: {
+            importedAt: '2024-07-30T09:14:45.928Z',
+            provider: 'references-provider',
+          },
+        }
+
+        const updates = [
+          resyncProjectStructureUpdate(
+            [],
+            [fileWhichWasADoc, this.persistedFile]
+          ),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+
+        expect(expandedUpdates).to.deep.equal([
+          {
+            pathname: fileWhichWasADoc.path,
+            new_pathname: '',
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+          {
+            pathname: fileWhichWasADoc.path,
+            file: fileWhichWasADoc.file,
+            url: fileWhichWasADoc.url,
+            hash: 'other-hash',
+            metadata: {
+              importedAt: '2024-07-30T09:14:45.928Z',
+              provider: 'references-provider',
+            },
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+        ])
+        expect(this.extendLock).to.have.been.called
+      })
+
+      it('add linked file data with same hash', async function () {
+        const nowLinkedFile = {
+          path: this.persistedFile.path,
+          url: 'filestore/1.png',
+          _hash: this.persistedFile._hash,
+          metadata: {
+            importedAt: '2024-07-30T09:14:45.928Z',
+            provider: 'image-provider',
+          },
+        }
+
+        const updates = [
+          resyncProjectStructureUpdate([this.persistedDoc], [nowLinkedFile]),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+
+        expect(expandedUpdates).to.deep.equal([
+          {
+            pathname: nowLinkedFile.path,
+            metadata: {
+              importedAt: '2024-07-30T09:14:45.928Z',
+              provider: 'image-provider',
+            },
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+        ])
+        expect(this.extendLock).to.have.been.called
+      })
+
+      it('updates linked file data when hash remains the same', async function () {
+        this.fileMap[this.persistedFile.path].getMetadata.returns({
+          importedAt: '2024-07-30T09:14:45.928Z',
+          provider: 'image-provider',
+        })
+        const updatedLinkedFile = {
+          path: this.persistedFile.path,
+          url: 'filestore/1.png',
+          _hash: this.persistedFile._hash,
+          metadata: {
+            importedAt: '2024-07-31T00:00:00.000Z',
+            provider: 'image-provider',
+          },
+        }
+
+        const updates = [
+          resyncProjectStructureUpdate(
+            [this.persistedDoc],
+            [updatedLinkedFile]
+          ),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+
+        expect(expandedUpdates).to.deep.equal([
+          {
+            pathname: updatedLinkedFile.path,
+            metadata: {
+              importedAt: '2024-07-31T00:00:00.000Z',
+              provider: 'image-provider',
+            },
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+        ])
+        expect(this.extendLock).to.have.been.called
+      })
+
+      it('remove linked file data', async function () {
+        this.fileMap[this.persistedFile.path].getMetadata.returns({
+          importedAt: '2024-07-30T09:14:45.928Z',
+          provider: 'image-provider',
+        })
+
+        const noLongerLinkedFile = {
+          path: this.persistedFile.path,
+          url: 'filestore/1.png',
+          _hash: this.persistedFile._hash,
+        }
+
+        const updates = [
+          resyncProjectStructureUpdate(
+            [this.persistedDoc],
+            [noLongerLinkedFile]
+          ),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+
+        expect(expandedUpdates).to.deep.equal([
+          {
+            pathname: noLongerLinkedFile.path,
+            metadata: {},
+            meta: {
+              resync: true,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -791,7 +1026,7 @@ describe('SyncManager', function () {
             new_pathname: '',
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -799,9 +1034,11 @@ describe('SyncManager', function () {
             pathname: persistedFileWithNewContent.path,
             file: persistedFileWithNewContent.file,
             url: persistedFileWithNewContent.url,
+            hash: 'anotherhashvalue',
+            metadata: undefined,
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -916,7 +1153,7 @@ describe('SyncManager', function () {
               pathname: this.persistedDoc.path,
               doc_length: this.persistedDocContent.length,
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -953,7 +1190,7 @@ describe('SyncManager', function () {
             docLines: '',
             meta: {
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -964,7 +1201,7 @@ describe('SyncManager', function () {
               pathname: newDoc.path,
               doc_length: 0,
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -1023,7 +1260,7 @@ describe('SyncManager', function () {
               pathname: this.persistedDoc.path,
               doc_length: this.persistedDocContent.length,
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               origin: { kind: 'history-resync' },
             },
           },
@@ -1038,10 +1275,11 @@ describe('SyncManager', function () {
               [this.persistedDoc],
               [this.persistedFile]
             ),
-            docContentSyncUpdate(this.persistedDoc, 'a'),
+            docContentSyncUpdate(this.persistedDoc, 'the quick brown fox'),
           ]
-          this.loadedSnapshotDoc.getContent.returns('stored content')
-          this.UpdateCompressor.diffAsShareJsOps.returns([{ d: 'sdf', p: 1 }])
+          this.UpdateCompressor.diffAsShareJsOps.returns([
+            { d: ' jumps over the lazy dog', p: 19 },
+          ])
           this.expandedUpdates =
             await this.SyncManager.promises.expandSyncUpdates(
               this.projectId,
@@ -1055,12 +1293,12 @@ describe('SyncManager', function () {
           expect(this.expandedUpdates).to.deep.equal([
             {
               doc: this.persistedDoc.doc,
-              op: [{ d: 'sdf', p: 1 }],
+              op: [{ d: ' jumps over the lazy dog', p: 19 }],
               meta: {
                 pathname: this.persistedDoc.path,
-                doc_length: 'stored content'.length,
+                doc_length: this.persistedDocContent.length,
                 resync: true,
-                ts: timestamp,
+                ts: TIMESTAMP,
                 origin: { kind: 'history-resync' },
               },
             },
@@ -1072,19 +1310,17 @@ describe('SyncManager', function () {
 
     describe('syncing comments', function () {
       beforeEach(function () {
-        this.loadedSnapshotDoc.getComments.returns({
-          toArray: sinon
-            .stub()
-            .returns([
-              new Comment('comment1', [new Range(4, 5)]),
-              new Comment('comment2', [new Range(10, 5)], true),
-            ]),
-        })
+        this.loadedSnapshotDoc
+          .getComments()
+          .add(new Comment('comment1', [new Range(4, 5)]))
+        this.loadedSnapshotDoc
+          .getComments()
+          .add(new Comment('comment2', [new Range(10, 5)], true))
         this.comments = [
           makeComment('comment1', 4, 'quick'),
           makeComment('comment2', 10, 'brown'),
         ]
-        this.resolvedComments = ['comment2']
+        this.resolvedCommentIds = ['comment2']
       })
 
       it('does nothing if comments have not changed', async function () {
@@ -1095,7 +1331,7 @@ describe('SyncManager', function () {
             {
               comments: this.comments,
             },
-            this.resolvedComments
+            this.resolvedCommentIds
           ),
         ]
         const expandedUpdates =
@@ -1117,7 +1353,7 @@ describe('SyncManager', function () {
             {
               comments: this.comments,
             },
-            this.resolvedComments
+            this.resolvedCommentIds
           ),
         ]
         const expandedUpdates =
@@ -1135,6 +1371,7 @@ describe('SyncManager', function () {
                 c: 'jumps',
                 p: 20,
                 t: 'comment3',
+                resolved: false,
               },
             ],
             meta: {
@@ -1143,7 +1380,7 @@ describe('SyncManager', function () {
               },
               pathname: this.persistedDoc.path,
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               doc_length: this.persistedDocContent.length,
             },
           },
@@ -1159,7 +1396,7 @@ describe('SyncManager', function () {
             {
               comments: this.comments,
             },
-            this.resolvedComments
+            this.resolvedCommentIds
           ),
         ]
         const expandedUpdates =
@@ -1178,7 +1415,7 @@ describe('SyncManager', function () {
                 kind: 'history-resync',
               },
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
             },
           },
         ])
@@ -1193,7 +1430,7 @@ describe('SyncManager', function () {
             {
               comments: this.comments,
             },
-            this.resolvedComments
+            this.resolvedCommentIds
           ),
         ]
         const expandedUpdates =
@@ -1211,6 +1448,7 @@ describe('SyncManager', function () {
                 c: 'fox',
                 p: 16,
                 t: 'comment2',
+                resolved: true,
               },
             ],
             meta: {
@@ -1218,7 +1456,7 @@ describe('SyncManager', function () {
                 kind: 'history-resync',
               },
               resync: true,
-              ts: timestamp,
+              ts: TIMESTAMP,
               pathname: this.persistedDoc.path,
               doc_length: this.persistedDocContent.length,
             },
@@ -1227,7 +1465,7 @@ describe('SyncManager', function () {
       })
 
       it('sets the resolved state when it differs', async function () {
-        this.resolvedComments = ['comment1']
+        this.resolvedCommentIds = ['comment1']
         const updates = [
           docContentSyncUpdate(
             this.persistedDoc,
@@ -1235,7 +1473,7 @@ describe('SyncManager', function () {
             {
               comments: this.comments,
             },
-            this.resolvedComments
+            this.resolvedCommentIds
           ),
         ]
         const expandedUpdates =
@@ -1250,11 +1488,366 @@ describe('SyncManager', function () {
             pathname: this.persistedDoc.path,
             commentId: 'comment1',
             resolved: true,
+            meta: {
+              origin: {
+                kind: 'history-resync',
+              },
+              resync: true,
+              ts: TIMESTAMP,
+            },
           },
           {
             pathname: this.persistedDoc.path,
             commentId: 'comment2',
             resolved: false,
+            meta: {
+              origin: {
+                kind: 'history-resync',
+              },
+              resync: true,
+              ts: TIMESTAMP,
+            },
+          },
+        ])
+      })
+
+      it('treats zero length comments as detached comments', async function () {
+        this.loadedSnapshotDoc.getComments().add(new Comment('comment1', []))
+        this.comments = [
+          makeComment('comment1', 16, ''),
+          makeComment('comment2', 10, 'brown'),
+        ]
+        this.resolvedCommentIds = ['comment2']
+
+        const updates = [
+          docContentSyncUpdate(
+            this.persistedDoc,
+            this.persistedDocContent,
+            {
+              comments: this.comments,
+            },
+            this.resolvedCommentIds
+          ),
+        ]
+
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+
+        expect(expandedUpdates).to.deep.equal([])
+      })
+
+      it('adjusts comment positions when the underlying text has changed', async function () {
+        const updates = [
+          docContentSyncUpdate(
+            this.persistedDoc,
+            'quick brown fox',
+            {
+              comments: [
+                makeComment('comment1', 0, 'quick'),
+                makeComment('comment2', 12, 'fox'),
+              ],
+            },
+            this.resolvedCommentIds
+          ),
+        ]
+        this.UpdateCompressor.diffAsShareJsOps.returns([
+          { d: 'the ', p: 0 },
+          { d: ' jumps over the lazy dog', p: 15 },
+        ])
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+        expect(expandedUpdates).to.deep.equal([
+          {
+            doc: this.persistedDoc.doc,
+            op: [
+              { d: 'the ', p: 0 },
+              { d: ' jumps over the lazy dog', p: 15 },
+            ],
+            meta: {
+              pathname: this.persistedDoc.path,
+              doc_length: this.persistedDocContent.length,
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
+          },
+          {
+            doc: this.persistedDoc.doc,
+            op: [
+              {
+                c: 'fox',
+                p: 12,
+                t: 'comment2',
+                resolved: true,
+              },
+            ],
+            meta: {
+              origin: {
+                kind: 'history-resync',
+              },
+              pathname: this.persistedDoc.path,
+              resync: true,
+              ts: TIMESTAMP,
+              doc_length: 'quick brown fox'.length,
+            },
+          },
+        ])
+      })
+    })
+
+    describe('syncing tracked changes', function () {
+      beforeEach(function () {
+        this.loadedSnapshotDoc.getTrackedChanges().add(
+          new TrackedChange(new Range(4, 6), {
+            type: 'delete',
+            userId: USER_ID,
+            ts: new Date(TIMESTAMP),
+          })
+        )
+        this.loadedSnapshotDoc.getTrackedChanges().add(
+          new TrackedChange(new Range(10, 6), {
+            type: 'insert',
+            userId: USER_ID,
+            ts: new Date(TIMESTAMP),
+          })
+        )
+        this.loadedSnapshotDoc.getTrackedChanges().add(
+          new TrackedChange(new Range(20, 6), {
+            type: 'delete',
+            userId: USER_ID,
+            ts: new Date(TIMESTAMP),
+          })
+        )
+        this.loadedSnapshotDoc.getTrackedChanges().add(
+          new TrackedChange(new Range(40, 3), {
+            type: 'insert',
+            userId: USER_ID,
+            ts: new Date(TIMESTAMP),
+          })
+        )
+        this.changes = [
+          makeTrackedChange('td1', { p: 4, d: 'quick ' }),
+          makeTrackedChange('ti1', { p: 4, hpos: 10, i: 'brown ' }),
+          makeTrackedChange('td2', { p: 14, hpos: 20, d: 'jumps ' }),
+          makeTrackedChange('ti2', { p: 28, hpos: 40, i: 'dog' }),
+        ]
+      })
+
+      it('does nothing if tracked changes have not changed', async function () {
+        const updates = [
+          docContentSyncUpdate(this.persistedDoc, this.persistedDocContent, {
+            changes: this.changes,
+          }),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+        expect(expandedUpdates).to.deep.equal([])
+      })
+
+      it('adds new tracked changes', async function () {
+        this.changes.splice(
+          3,
+          0,
+          makeTrackedChange('td3', { p: 29, hpos: 35, d: 'lazy ' })
+        )
+        const updates = [
+          docContentSyncUpdate(this.persistedDoc, this.persistedDocContent, {
+            changes: this.changes,
+          }),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+        expect(expandedUpdates).to.deep.equal([
+          {
+            doc: this.persistedDoc.doc,
+            op: [
+              {
+                p: 35,
+                r: 'lazy ',
+                tracking: {
+                  type: 'delete',
+                  userId: USER_ID,
+                  ts: TIMESTAMP,
+                },
+              },
+            ],
+            meta: {
+              origin: {
+                kind: 'history-resync',
+              },
+              pathname: this.persistedDoc.path,
+              resync: true,
+              ts: TIMESTAMP,
+              doc_length: this.persistedDocContent.length,
+            },
+          },
+        ])
+      })
+
+      it('removes extra tracked changes', async function () {
+        this.changes.splice(0, 1)
+        const updates = [
+          docContentSyncUpdate(this.persistedDoc, this.persistedDocContent, {
+            changes: this.changes,
+          }),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+        expect(expandedUpdates).to.deep.equal([
+          {
+            doc: this.persistedDoc.doc,
+            op: [
+              {
+                p: 4,
+                r: 'quick ',
+                tracking: { type: 'none' },
+              },
+            ],
+            meta: {
+              origin: {
+                kind: 'history-resync',
+              },
+              pathname: this.persistedDoc.path,
+              resync: true,
+              ts: TIMESTAMP,
+              doc_length: this.persistedDocContent.length,
+            },
+          },
+        ])
+      })
+
+      it('handles overlapping ranges', async function () {
+        this.changes = [
+          makeTrackedChange('ti1', { p: 0, i: 'the quic' }),
+          makeTrackedChange('td1', { p: 8, d: 'k br' }),
+          makeTrackedChange('ti2', { p: 14, hpos: 23, i: 'ps over' }),
+        ]
+        const updates = [
+          docContentSyncUpdate(this.persistedDoc, this.persistedDocContent, {
+            changes: this.changes,
+          }),
+        ]
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+
+        // Before: the [quick ][brown ] fox [jumps ]over the lazy dog
+        // After:  [the quic][k br]own fox jum[ps over] the lazy dog
+        expect(expandedUpdates).to.deep.equal([
+          {
+            doc: this.persistedDoc.doc,
+            op: [
+              {
+                p: 0,
+                r: 'the quic',
+                tracking: { type: 'insert', userId: USER_ID, ts: TIMESTAMP },
+              },
+              {
+                p: 10,
+                r: 'br',
+                tracking: { type: 'delete', userId: USER_ID, ts: TIMESTAMP },
+              },
+              {
+                p: 12,
+                r: 'own ',
+                tracking: { type: 'none' },
+              },
+              {
+                p: 20,
+                r: 'jum',
+                tracking: { type: 'none' },
+              },
+              {
+                p: 23,
+                r: 'ps over',
+                tracking: { type: 'insert', userId: USER_ID, ts: TIMESTAMP },
+              },
+              {
+                p: 40,
+                r: 'dog',
+                tracking: { type: 'none' },
+              },
+            ],
+            meta: {
+              origin: { kind: 'history-resync' },
+              pathname: this.persistedDoc.path,
+              resync: true,
+              ts: TIMESTAMP,
+              doc_length: this.persistedDocContent.length,
+            },
+          },
+        ])
+      })
+
+      it('adjusts tracked change positions when the underlying text has changed', async function () {
+        const updates = [
+          docContentSyncUpdate(
+            this.persistedDoc,
+            'every fox jumps over the lazy dog',
+            {
+              changes: [
+                makeTrackedChange('ti1', { p: 5, i: ' ' }), // the space after every is still a tracked insert
+                makeTrackedChange('td2', { p: 10, d: 'jumps ' }),
+                makeTrackedChange('ti2', { p: 24, hpos: 30, i: 'dog' }),
+              ],
+            },
+            this.resolvedCommentIds
+          ),
+        ]
+        this.UpdateCompressor.diffAsShareJsOps.returns([
+          { d: 'the quick brown', p: 0 },
+          { i: 'every', p: 0 },
+        ])
+        const expandedUpdates =
+          await this.SyncManager.promises.expandSyncUpdates(
+            this.projectId,
+            this.historyId,
+            updates,
+            this.extendLock
+          )
+        expect(expandedUpdates).to.deep.equal([
+          {
+            doc: this.persistedDoc.doc,
+            op: [
+              { d: 'the quick brown', p: 0 },
+              { i: 'every', p: 0 },
+            ],
+            meta: {
+              pathname: this.persistedDoc.path,
+              doc_length: this.persistedDocContent.length,
+              resync: true,
+              ts: TIMESTAMP,
+              origin: { kind: 'history-resync' },
+            },
           },
         ])
       })

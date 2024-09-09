@@ -1,4 +1,4 @@
-import { JSXElementConstructor, useState } from 'react'
+import { JSXElementConstructor, useState, ElementType } from 'react'
 import Common from './groups/common'
 import Institution from './groups/institution'
 import ConfirmEmail from './groups/confirm-email'
@@ -10,32 +10,26 @@ import getMeta from '../../../../utils/meta'
 import importOverleafModules from '../../../../../macros/import-overleaf-module.macro'
 import customLocalStorage from '../../../../infrastructure/local-storage'
 import { sendMB } from '../../../../infrastructure/event-tracking'
-import classNames from 'classnames'
 import GeoBanners from './geo-banners'
 import AccessibilitySurveyBanner from './accessibility-survey-banner'
-
-type Subscription = {
-  groupId: string
-  groupName: string
-}
 
 const [enrollmentNotificationModule] = importOverleafModules(
   'managedGroupSubscriptionEnrollmentNotification'
 )
+
+const moduleNotifications = importOverleafModules('userNotifications') as {
+  import: { default: ElementType }
+  path: string
+}[]
+
 const EnrollmentNotification: JSXElementConstructor<{
   groupId: string
   groupName: string
 }> = enrollmentNotificationModule?.import.default
 
 function UserNotifications() {
-  const newNotificationStyle = getMeta(
-    'ol-newNotificationStyle',
-    false
-  ) as boolean
-  const groupSubscriptionsPendingEnrollment: Subscription[] = getMeta(
-    'ol-groupSubscriptionsPendingEnrollment',
-    []
-  )
+  const groupSubscriptionsPendingEnrollment =
+    getMeta('ol-groupSubscriptionsPendingEnrollment') || []
   const user = getMeta('ol-user')
 
   // Temporary workaround to prevent also showing groups/enterprise banner
@@ -64,11 +58,7 @@ function UserNotifications() {
   const [dismissedWritefull, setDismissedWritefull] = useState(false)
 
   return (
-    <div
-      className={classNames('user-notifications', {
-        'notification-list': newNotificationStyle,
-      })}
-    >
+    <div className="user-notifications notification-list">
       <ul className="list-unstyled">
         {EnrollmentNotification &&
           groupSubscriptionsPendingEnrollment.map(subscription => (
@@ -95,6 +85,9 @@ function UserNotifications() {
             setDismissedWritefull(true)
           }}
         />
+        {moduleNotifications.map(({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        ))}
       </ul>
     </div>
   )

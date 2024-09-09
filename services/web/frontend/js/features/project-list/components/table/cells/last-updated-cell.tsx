@@ -1,7 +1,7 @@
 import { formatDate, fromNowDate } from '../../../../../utils/dates'
 import { Project } from '../../../../../../../types/project/dashboard/api'
-import Tooltip from '../../../../../shared/components/tooltip'
 import { LastUpdatedBy } from '@/features/project-list/components/table/cells/last-updated-by'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
 
 type LastUpdatedCellProps = {
   project: Project
@@ -12,20 +12,22 @@ export default function LastUpdatedCell({ project }: LastUpdatedCellProps) {
 
   const tooltipText = formatDate(project.lastUpdated)
   return (
-    <Tooltip
+    <OLTooltip
       key={`tooltip-last-updated-${project.id}`}
       id={`tooltip-last-updated-${project.id}`}
       description={tooltipText}
       overlayProps={{ placement: 'top', trigger: ['hover', 'focus'] }}
     >
       {project.lastUpdatedBy ? (
-        <LastUpdatedBy
-          lastUpdatedBy={project.lastUpdatedBy}
-          lastUpdatedDate={lastUpdatedDate}
-        />
+        <span>
+          <LastUpdatedBy
+            lastUpdatedBy={project.lastUpdatedBy}
+            lastUpdatedDate={lastUpdatedDate}
+          />
+        </span>
       ) : (
         <span>{lastUpdatedDate}</span>
       )}
-    </Tooltip>
+    </OLTooltip>
   )
 }

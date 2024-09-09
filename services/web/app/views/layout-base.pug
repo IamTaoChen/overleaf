@@ -6,7 +6,8 @@ html(
 	class=(fixedSizeDocument ? 'fixed-size-document' : undefined)
 )
 	- metadata = metadata || {}
-	- let bootstrap5EnabledPage = false
+	- let bootstrap5PageStatus = 'disabled' // One of 'disabled', 'enabled', and 'queryStringOnly'
+	- let bootstrap5PageSplitTest = ''
 
 	block entrypointVar
 
@@ -14,28 +15,29 @@ html(
 
 	head
 		include ./_metadata.pug
-			
-		- const bootstrapVersion = bootstrap5EnabledPage && splitTestVariants['bootstrap-5'] === 'enabled' ? 5 : 3
+
+		- const bootstrapVersion = bootstrap5PageStatus !== 'disabled' && (bootstrap5Override || (bootstrap5PageStatus === 'enabled' && splitTestVariants[bootstrap5PageSplitTest] === 'enabled')) ? 5 : 3
+		- const ieeeStylesheetEnabled = splitTestVariants?.['ieee-stylesheet'] !== 'disabled'
 
 		//- Stylesheet
-		link(rel='stylesheet', href=buildCssPath(getCssThemeModifier(userSettings, brandVariation), bootstrapVersion), id="main-stylesheet")
+		link(rel='stylesheet', href=buildCssPath(getCssThemeModifier(userSettings, brandVariation, ieeeStylesheetEnabled), bootstrapVersion), id="main-stylesheet")
 		block css
 			each file in entrypointStyles(entrypoint)
 				link(rel='stylesheet', href=file)
 
 		block _headLinks
 
-		if (typeof(suppressRelAlternateLinks) == "undefined")
+		if (typeof suppressRelAlternateLinks == "undefined")
 			if settings.i18n.subdomainLang
 				each subdomainDetails in settings.i18n.subdomainLang
 					if !subdomainDetails.hide
-						link(rel="alternate", href=subdomainDetails.url+currentUrl, hreflang=subdomainDetails.lngCode)
-		
+						link(rel="alternate", href=subdomainDetails.url + currentUrl, hreflang=subdomainDetails.lngCode)
+
 		if (entrypoint !== 'marketing')
 			link(rel="preload", href=buildJsPath(currentLngCode + "-json.js"), as="script", nonce=scriptNonce)
 
 		//- Scripts
-		if (typeof(suppressGoogleAnalytics) == "undefined")
+		if (typeof suppressGoogleAnalytics == "undefined")
 			include _google_analytics
 
 		block meta
@@ -57,7 +59,7 @@ html(
 			meta(name="ol-splitTestVariants" data-type="json" content=splitTestVariants || {})
 			meta(name="ol-splitTestInfo" data-type="json" content=splitTestInfo || {})
 
-			if (typeof(settings.algolia) != "undefined")
+			if (typeof settings.algolia != "undefined")
 				meta(name="ol-algolia" data-type="json" content={
 					appId: settings.algolia.app_id,
 					apiKey: settings.algolia.read_only_api_key,
@@ -71,16 +73,16 @@ html(
 
 		block head-scripts
 
-	body(ng-csp=(cspEnabled ? "no-unsafe-eval" : false) class=(showThinFooter ? 'thin-footer' : undefined))
+	body(class=(showThinFooter ? 'thin-footer' : undefined))
 		if(settings.recaptcha && settings.recaptcha.siteKeyV3)
-			script(type="text/javascript", nonce=scriptNonce, src="https://www.recaptcha.net/recaptcha/api.js?render="+settings.recaptcha.siteKeyV3, defer=deferScripts)
+			script(type="text/javascript", nonce=scriptNonce, src="https://www.recaptcha.net/recaptcha/api.js?render=" + settings.recaptcha.siteKeyV3, defer=deferScripts)
 
-		if (typeof(suppressSkipToContent) == "undefined")
+		if (typeof suppressSkipToContent == "undefined")
 			a(class="skip-to-content" href="#main-content") #{translate('skip_to_content')}
 
 		block body
 
-		if (settings.splitTest.devToolbar.enabled)
+		if (settings.devToolbar.enabled)
 			div#dev-toolbar
 
 	block foot-scripts

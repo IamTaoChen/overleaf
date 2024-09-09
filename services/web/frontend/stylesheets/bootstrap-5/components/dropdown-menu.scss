@@ -2,31 +2,46 @@
   display: inline-flex;
 }
 
-.dropdown-menu {
-  @include shadow-sm;
+.dropdown-header {
+  @include body-xs;
 
-  border: none;
-  border-radius: var(--border-radius-base);
-  padding: var(--spacing-02);
-  transform: none;
-  width: 240px;
+  padding: var(--spacing-05) var(--spacing-06) var(--spacing-02)
+    var(--spacing-04);
+}
+
+.dropdown-menu {
+  @include shadow-md;
+
+  min-width: 240px;
+
+  &.sm {
+    min-width: 160px;
+  }
+
+  .subdued {
+    color: var(--content-disabled);
+  }
 }
 
 .dropdown-item {
   @include body-sm;
 
-  border-radius: var(--border-radius-base);
-  color: var(--neutral-90);
+  --bs-dropdown-item-border-radius: var(--border-radius-base);
+
   display: grid;
   grid-auto-flow: column;
-  justify-content: start;
+  place-content: center start;
   min-height: 44px; // a minimum height of 44px to be accessible for touch screens
-  padding: var(--spacing-05) var(--spacing-04);
   position: relative;
 
   &:active {
     background-color: var(--bg-accent-03);
-    color: inherit;
+  }
+
+  &,
+  &:active,
+  &:visited {
+    color: var(--neutral-90);
   }
 
   &:hover:not(.active),
@@ -49,12 +64,20 @@
     background-color: var(--bg-accent-03);
     color: var(--green-70);
   }
+
+  &.btn-link {
+    text-decoration: none;
+
+    &:hover,
+    &:focus {
+      color: inherit;
+    }
+  }
 }
 
 .dropdown-divider {
-  border-radius: 1px;
-  background-color: var(--border-divider);
-  margin: 2px 6px;
+  border-top-color: var(--border-divider);
+  margin: var(--spacing-01) var(--spacing-03);
 }
 
 .dropdown-item-description {
@@ -78,6 +101,23 @@
 
 .dropdown-item-leading-icon {
   padding-right: var(--spacing-04);
+
+  &.spinner {
+    margin-left: var(--spacing-01);
+    margin-right: var(--spacing-01);
+  }
+}
+
+.dropdown-item-leading-icon,
+.dropdown-item-trailing-icon {
+  .material-symbols {
+    vertical-align: top;
+  }
+}
+
+.dropdown-item-leading-icon-empty {
+  display: inline-block;
+  width: 20px;
 }
 
 // description text should look disabled when the dropdown item is disabled
@@ -123,6 +163,6 @@
   overflow-x: hidden;
 }
 
-.dropdown-item--highlighted {
+.dropdown-item-highlighted {
   background-color: var(--bg-light-secondary);
 }

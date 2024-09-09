@@ -90,6 +90,35 @@ async function deleteMessage(projectId, threadId, messageId) {
   )
 }
 
+async function getResolvedThreadIds(projectId) {
+  const body = await fetchJson(
+    chatApiUrl(`/project/${projectId}/resolved-thread-ids`)
+  )
+  return body.resolvedThreadIds
+}
+
+async function duplicateCommentThreads(projectId, threads) {
+  return await fetchJson(
+    chatApiUrl(`/project/${projectId}/duplicate-comment-threads`),
+    {
+      method: 'POST',
+      json: {
+        threads,
+      },
+    }
+  )
+}
+
+async function generateThreadData(projectId, threads) {
+  return await fetchJson(
+    chatApiUrl(`/project/${projectId}/generate-thread-data`),
+    {
+      method: 'POST',
+      json: { threads },
+    }
+  )
+}
+
 function chatApiUrl(path) {
   return new URL(path, settings.apis.chat.internal_url)
 }
@@ -105,6 +134,9 @@ module.exports = {
   deleteThread: callbackify(deleteThread),
   editMessage: callbackify(editMessage),
   deleteMessage: callbackify(deleteMessage),
+  getResolvedThreadIds: callbackify(getResolvedThreadIds),
+  duplicateCommentThreads: callbackify(duplicateCommentThreads),
+  generateThreadData: callbackify(generateThreadData),
   promises: {
     getThreads,
     destroyProject,
@@ -116,5 +148,8 @@ module.exports = {
     deleteThread,
     editMessage,
     deleteMessage,
+    getResolvedThreadIds,
+    duplicateCommentThreads,
+    generateThreadData,
   },
 }

@@ -68,7 +68,8 @@ module.exports = {
     webRouter.get(
       '/project/:Project_id/members',
       AuthenticationController.requireLogin(),
-      AuthorizationMiddleware.ensureUserCanAdminProject,
+      AuthorizationMiddleware.blockRestrictedUserFromProject,
+      AuthorizationMiddleware.ensureUserCanReadProject,
       CollaboratorsController.getAllMembers
     )
 
@@ -123,7 +124,7 @@ module.exports = {
       }),
       AuthenticationController.requireLogin(),
       AuthorizationMiddleware.ensureUserCanAdminProject,
-      CollaboratorsInviteController.resendInvite
+      CollaboratorsInviteController.generateNewInvite
     )
 
     webRouter.get(

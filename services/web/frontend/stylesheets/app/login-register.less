@@ -37,9 +37,6 @@
     border-bottom-width: 0;
   }
 }
-.login-register-other-links {
-  padding: @line-height-computed;
-}
 
 .login-register-text,
 .login-register-hr-text-container {
@@ -89,20 +86,8 @@
   }
 }
 
-.login-btn-icon-ieee {
-  background-image: url(../../../public/img/other-brands/logo_ieee.svg);
-}
-.login-btn-icon-google {
-  background-image: url(../../../public/img/other-brands/logo_google.svg);
-}
 .login-btn-icon-twitter {
   background-image: url(../../../public/img/other-brands/logo_twitter.svg);
-}
-.login-btn-icon-orcid {
-  background-image: url(../../../public/img/other-brands/logo_orcid.svg);
-}
-.login-btn-icon-institution {
-  background-image: url(../../../public/img/other-brands/logo_institution.svg);
 }
 
 .registration-message-heading {
@@ -120,22 +105,6 @@
 .website-redesign {
   .login-register-container {
     max-width: 320px;
-  }
-
-  .login-overleaf-logo-container {
-    padding: 15px;
-    width: 65px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    .login-overleaf-logo {
-      width: 35px;
-    }
-
-    @media (max-width: @screen-xs-max) {
-      margin-top: @margin-lg;
-    }
   }
 
   .login-register-text {
@@ -163,22 +132,27 @@
   .login-register-other-links {
     padding: @line-height-computed 0;
     a {
-      color: var(--emerald-green);
+      color: var(--green-50);
       text-decoration: underline;
       // text-decoration-;skip-ink is for letter with descender (like 'g' and 'y')
       // this will force underline to not skip the descender
       text-decoration-skip-ink: none;
 
       &:hover {
-        color: var(--emerald-green-dark);
+        color: var(--green-60);
       }
 
       // for accessibility with keyboard navigation
       &:focus {
-        outline: 2px solid var(--emerald-green);
+        outline: 2px solid var(--green-50);
         outline-offset: 1px;
       }
     }
+  }
+
+  .flex-center {
+    display: flex;
+    justify-content: center;
   }
 
   .login-btn {
@@ -215,9 +189,12 @@
   .form-group-password {
     display: flex;
     position: relative;
+    flex-direction: column;
 
-    input.form-control {
-      padding-right: 35px;
+    .form-group-password-input {
+      input.form-control {
+        padding-right: 35px;
+      }
     }
 
     .visibility-toggle {
@@ -236,6 +213,10 @@
         margin-top: 2px; // workaround for the icon not having the same center as the non-slashed one
       }
     }
+  }
+
+  .top-padding-computed-2 {
+    padding-top: @line-height-computed * 2;
   }
 
   .form-group-password-input {
@@ -277,11 +258,13 @@
       .register-illustration {
         position: absolute;
         left: 80px;
+        top: 100px;
 
         // for wide screen
         @media (min-width: 1700px) {
           position: relative;
           left: unset;
+          top: unset;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -320,19 +303,19 @@
     font-size: 12px;
 
     a {
-      color: var(--emerald-green);
+      color: var(--green-50);
       text-decoration: underline;
       // text-decoration-;skip-ink is for letter with descender (like 'g' and 'y')
       // this will force underline to not skip the descender
       text-decoration-skip-ink: none;
 
       &:hover {
-        color: var(--emerald-green-dark);
+        color: var(--green-60);
       }
 
       // for accessibility with keyboard navigation
       &:focus {
-        outline: 2px solid var(--emerald-green);
+        outline: 2px solid var(--green-50);
         outline-offset: 1px;
       }
     }
@@ -340,7 +323,7 @@
 
   .register-header-logo {
     &:focus {
-      outline: 2px solid var(--emerald-green);
+      outline: 2px solid var(--green-50);
     }
   }
 }

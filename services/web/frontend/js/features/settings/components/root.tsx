@@ -18,7 +18,6 @@ import { SSOProvider } from '../context/sso-context'
 import { SplitTestProvider } from '@/shared/context/split-test-context'
 import useWaitForI18n from '../../../shared/hooks/use-wait-for-i18n'
 import useScrollToIdOnLoad from '../../../shared/hooks/use-scroll-to-id-on-load'
-import { ExposedSettings } from '../../../../../types/exposed-settings'
 import { SSOAlert } from './emails/sso-alert'
 import OLRow from '@/features/ui/components/ol/ol-row'
 import OLCol from '@/features/ui/components/ol/ol-col'
@@ -35,7 +34,7 @@ function SettingsPageRoot() {
   return (
     <div className="container">
       <OLRow>
-        <OLCol md={12} lg={{ span: 10, offset: 1 }}>
+        <OLCol xl={{ span: 10, offset: 1 }}>
           {isReady ? <SettingsPageContent /> : null}
         </OLCol>
       </OLRow>
@@ -45,9 +44,7 @@ function SettingsPageRoot() {
 
 function SettingsPageContent() {
   const { t } = useTranslation()
-  const { isOverleaf, labsEnabled } = getMeta(
-    'ol-ExposedSettings'
-  ) as ExposedSettings
+  const { isOverleaf, labsEnabled } = getMeta('ol-ExposedSettings')
 
   return (
     <UserProvider>
@@ -60,10 +57,10 @@ function SettingsPageContent() {
           <EmailsSection />
           <SSOAlert />
           <OLRow>
-            <OLCol md={5}>
+            <OLCol lg={5}>
               <AccountInfoSection />
             </OLCol>
-            <OLCol md={{ span: 5, offset: 1 }}>
+            <OLCol lg={{ span: 5, offset: 1 }}>
               <PasswordSection />
             </OLCol>
           </OLRow>
@@ -83,7 +80,6 @@ function SettingsPageContent() {
           {labsEnabled ? (
             <>
               <LabsProgramSection />
-              <hr />
             </>
           ) : null}
           <SessionsSection />

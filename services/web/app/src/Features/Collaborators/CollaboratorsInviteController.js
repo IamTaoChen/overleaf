@@ -4,6 +4,7 @@ const LimitationsManager = require('../Subscription/LimitationsManager')
 const UserGetter = require('../User/UserGetter')
 const CollaboratorsGetter = require('./CollaboratorsGetter')
 const CollaboratorsInviteHandler = require('./CollaboratorsInviteHandler')
+const CollaboratorsInviteGetter = require('./CollaboratorsInviteGetter')
 const logger = require('@overleaf/logger')
 const Settings = require('@overleaf/settings')
 const EmailHelper = require('../Helpers/EmailHelper')
@@ -15,6 +16,8 @@ const { expressify } = require('@overleaf/promise-utils')
 const ProjectAuditLogHandler = require('../Project/ProjectAuditLogHandler')
 const Errors = require('../Errors/Errors')
 const AuthenticationController = require('../Authentication/AuthenticationController')
+const SplitTestHandler = require('../SplitTests/SplitTestHandler')
+const PrivilegeLevels = require('../Authorization/PrivilegeLevels')
 
 // This rate limiter allows a different number of requests depending on the
 // number of callaborators a user is allowed. This is implemented by providing
@@ -36,7 +39,7 @@ const CollaboratorsInviteController = {
     const projectId = req.params.Project_id
     logger.debug({ projectId }, 'getting all active invites for project')
     const invites =
-      await CollaboratorsInviteHandler.promises.getAllInvites(projectId)
+      await CollaboratorsInviteGetter.promises.getAllInvites(projectId)
     res.json({ invites })
   },
 
@@ -97,10 +100,33 @@ const CollaboratorsInviteController = {
 
     logger.debug({ projectId, email, sendingUserId }, 'inviting to project')
 
-    const allowed = await LimitationsManager.promises.canAddXCollaborators(
-      projectId,
-      1
-    )
+    const project = await ProjectGetter.promises.getProject(projectId, {
+      owner_ref: 1,
+    })
+    const linkSharingChanges =
+      await SplitTestHandler.promises.getAssignmentForUser(
+        project.owner_ref,
+        'link-sharing-warning'
+      )
+
+    let allowed = false
+    if (linkSharingChanges?.variant === 'active') {
+      // if link-sharing-warning is active, can always invite read-only collaborators
+      if (privileges === PrivilegeLevels.READ_ONLY) {
+        allowed = true
+      } else {
+        allowed = await LimitationsManager.promises.canAddXEditCollaborators(
+          projectId,
+          1
+        )
+      }
+    } else {
+      allowed = await LimitationsManager.promises.canAddXCollaborators(
+        projectId,
+        1
+      )
+    }
+
     if (!allowed) {
       logger.debug(
         { projectId, email, sendingUserId },
@@ -195,7 +221,7 @@ const CollaboratorsInviteController = {
     res.sendStatus(204)
   },
 
-  async resendInvite(req, res) {
+  async generateNewInvite(req, res) {
     const projectId = req.params.Project_id
     const inviteId = req.params.invite_id
     const user = SessionManager.getSessionUser(req.session)
@@ -209,10 +235,16 @@ const CollaboratorsInviteController = {
       return res.sendStatus(429)
     }
 
-    const invite = await CollaboratorsInviteHandler.promises.resendInvite(
+    const invite = await CollaboratorsInviteHandler.promises.generateNewInvite(
       projectId,
       sendingUser,
       inviteId
+    )
+
+    EditorRealTimeController.emitToRoom(
+      projectId,
+      'project:membership:changed',
+      { invites: true }
     )
 
     if (invite != null) {
@@ -226,9 +258,11 @@ const CollaboratorsInviteController = {
           privileges: invite.privileges,
         }
       )
-    }
 
-    res.sendStatus(201)
+      res.sendStatus(201)
+    } else {
+      res.sendStatus(404)
+    }
   },
 
   async viewInvite(req, res) {
@@ -258,7 +292,7 @@ const CollaboratorsInviteController = {
     }
 
     // get the invite
-    const invite = await CollaboratorsInviteHandler.promises.getInviteByToken(
+    const invite = await CollaboratorsInviteGetter.promises.getInviteByToken(
       projectId,
       token
     )
@@ -303,6 +337,7 @@ const CollaboratorsInviteController = {
     // finally render the invite
     res.render('project/invite/show', {
       invite,
+      token,
       project,
       owner,
       title: 'Project Invite',
@@ -317,7 +352,7 @@ const CollaboratorsInviteController = {
       'got request to accept invite'
     )
 
-    const invite = await CollaboratorsInviteHandler.promises.getInviteByToken(
+    const invite = await CollaboratorsInviteGetter.promises.getInviteByToken(
       projectId,
       token
     )
@@ -348,7 +383,7 @@ const CollaboratorsInviteController = {
       'project:membership:changed',
       { invites: true, members: true }
     )
-    AnalyticsManager.recordEventForUser(
+    AnalyticsManager.recordEventForUserInBackground(
       currentUser._id,
       'project-invite-accept',
       {
@@ -369,7 +404,9 @@ module.exports = {
   getAllInvites: expressify(CollaboratorsInviteController.getAllInvites),
   inviteToProject: expressify(CollaboratorsInviteController.inviteToProject),
   revokeInvite: expressify(CollaboratorsInviteController.revokeInvite),
-  resendInvite: expressify(CollaboratorsInviteController.resendInvite),
+  generateNewInvite: expressify(
+    CollaboratorsInviteController.generateNewInvite
+  ),
   viewInvite: expressify(CollaboratorsInviteController.viewInvite),
   acceptInvite: expressify(CollaboratorsInviteController.acceptInvite),
   _checkShouldInviteEmail: callbackify(

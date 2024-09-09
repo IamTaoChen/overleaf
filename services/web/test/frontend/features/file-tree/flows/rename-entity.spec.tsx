@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import FileTreeRoot from '../../../../../frontend/js/features/file-tree/components/file-tree-root'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import { SocketIOMock } from '@/ide/connection/SocketIoShim'
@@ -42,7 +43,6 @@ describe('FileTree Rename Entity Flow', function () {
         >
           <FileTreeRoot
             refProviders={{}}
-            reindexReferences={cy.stub()}
             setRefProviderEnabled={cy.stub()}
             setStartedFreeTrial={cy.stub()}
             onSelect={cy.stub().as('onSelect')}

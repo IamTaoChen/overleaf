@@ -27,7 +27,7 @@ export default function MemberRow({
   groupId,
 }: ManagedUserRowProps) {
   const { t } = useTranslation()
-  const managedUsersActive: any = getMeta('ol-managedUsersActive')
+  const managedUsersActive = getMeta('ol-managedUsersActive')
   const groupSSOActive = getMeta('ol-groupSSOActive')
 
   return (
@@ -48,7 +48,7 @@ export default function MemberRow({
               >
                 <Badge
                   bsStyle={null}
-                  className="badge-bs3"
+                  className="badge-tag-bs3"
                   aria-label={t('pending_invite')}
                   data-testid="badge-pending-invite"
                 >

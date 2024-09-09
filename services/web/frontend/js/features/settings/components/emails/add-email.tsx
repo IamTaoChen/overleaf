@@ -42,7 +42,7 @@ function AddEmail() {
     getEmails,
   } = useUserEmailsContext()
 
-  const emailAddressLimit = getMeta('ol-emailAddressLimit', 10)
+  const emailAddressLimit = getMeta('ol-emailAddressLimit') || 10
   const { ref: recaptchaRef, getReCaptchaToken } = useRecaptcha()
 
   useEffect(() => {
@@ -109,7 +109,7 @@ function AddEmail() {
   if (!isFormVisible) {
     return (
       <Layout isError={isError} error={error}>
-        <OLCol md={12}>
+        <OLCol lg={12}>
           <Cell>
             {state.data.emailCount >= emailAddressLimit ? (
               <span className="small">
@@ -151,8 +151,8 @@ function AddEmail() {
     return (
       <form>
         <Layout isError={isError} error={error}>
-          <ReCaptcha2 page="addEmail" ref={recaptchaRef} />
-          <OLCol md={8}>
+          <ReCaptcha2 page="addEmail" recaptchaRef={recaptchaRef} />
+          <OLCol lg={8}>
             <Cell>
               {InputComponent}
               <div className="affiliations-table-cell-tabbed">
@@ -160,13 +160,8 @@ function AddEmail() {
               </div>
             </Cell>
           </OLCol>
-          <OLCol md={4}>
-            <Cell
-              className={bsVersion({
-                bs5: 'text-md-end',
-                bs3: 'text-md-right',
-              })}
-            >
+          <OLCol lg={4}>
+            <Cell className="text-lg-end">
               <AddNewEmailBtn email={newEmail} disabled />
             </Cell>
           </OLCol>
@@ -181,8 +176,8 @@ function AddEmail() {
   return (
     <form>
       <Layout isError={isError} error={error}>
-        <ReCaptcha2 page="addEmail" ref={recaptchaRef} />
-        <OLCol md={8}>
+        <ReCaptcha2 page="addEmail" recaptchaRef={recaptchaRef} />
+        <OLCol lg={8}>
           <Cell>
             {InputComponent}
             {!isSsoAvailableForDomain ? (
@@ -205,13 +200,8 @@ function AddEmail() {
           </Cell>
         </OLCol>
         {!isSsoAvailableForDomain ? (
-          <OLCol md={4}>
-            <Cell
-              className={bsVersion({
-                bs5: 'text-md-end',
-                bs3: 'text-md-right',
-              })}
-            >
+          <OLCol lg={4}>
+            <Cell className="text-lg-end">
               <AddNewEmailBtn
                 email={newEmail}
                 disabled={state.isLoading}
@@ -221,7 +211,7 @@ function AddEmail() {
             </Cell>
           </OLCol>
         ) : (
-          <OLCol md={12}>
+          <OLCol lg={12}>
             <Cell>
               <div className="affiliations-table-cell-tabbed">
                 <SsoLinkingInfo

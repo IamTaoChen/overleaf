@@ -12,7 +12,7 @@
   padding-left: var(--spacing-04);
 }
 
-.affiliations-table-row--highlighted {
+.affiliations-table-row-highlighted {
   background-color: var(--bg-light-secondary);
 }
 
@@ -38,17 +38,21 @@
   font-size: 1.3em;
   line-height: 1.3em;
   vertical-align: top;
+
   &.status-error,
   &.dropbox-sync-icon-error {
     color: var(--bg-danger-01);
   }
+
   &.status-success,
   &.dropbox-sync-icon-success {
     color: var(--content-positive);
   }
+
   &.status-pending,
   &.dropbox-sync-icon-updating {
     color: var(--bg-info-01);
+
     &::after {
       content: '\f021';
       position: absolute;
@@ -97,7 +101,8 @@
   }
 
   .title-row {
-    margin: var(--spacing-00);
+    display: flex;
+    align-items: center;
     margin-bottom: var(--spacing-05);
 
     > h4 {
@@ -115,9 +120,13 @@
   }
 }
 
-@include media-breakpoint-down(sm) {
+@include media-breakpoint-down(md) {
   .settings-widget-container {
     grid-template-columns: 1fr;
+
+    .title-row {
+      display: unset;
+    }
   }
 }
 
@@ -136,25 +145,6 @@
 
 .linking-git-bridge-revoke-button {
   padding: var(--spacing-01) var(--spacing-02);
-}
-
-.enrollment-alert {
-  width: 100%;
-  border-radius: var(--border-radius-base);
-  padding: var(--spacing-05);
-  background-color: var(--bg-info-03);
-  border: 1px solid var(--border-divider);
-  display: flex;
-  flex-direction: row;
-
-  .icon {
-    flex: 1 1 auto;
-    padding: 0 var(--spacing-06) 0 var(--spacing-02);
-  }
-
-  a {
-    text-decoration: underline;
-  }
 }
 
 .security-row {
@@ -189,6 +179,7 @@
 
   .status-label {
     @include body-sm;
+
     border-radius: var(--border-radius-base);
     padding: var(--spacing-01) var(--spacing-02);
     margin-top: var(--spacing-02);

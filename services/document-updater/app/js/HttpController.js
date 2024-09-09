@@ -11,27 +11,6 @@ const DeleteQueueManager = require('./DeleteQueueManager')
 const { getTotalSizeOfLines } = require('./Limits')
 const async = require('async')
 
-module.exports = {
-  getDoc,
-  peekDoc,
-  getProjectDocsAndFlushIfOld,
-  clearProjectState,
-  setDoc,
-  flushDocIfLoaded,
-  deleteDoc,
-  flushProject,
-  deleteProject,
-  deleteMultipleProjects,
-  acceptChanges,
-  resolveComment,
-  reopenComment,
-  deleteComment,
-  updateProject,
-  resyncProjectHistory,
-  flushAllProjects,
-  flushQueuedProjects,
-}
-
 function getDoc(req, res, next) {
   let fromVersion
   const docId = req.params.doc_id
@@ -65,6 +44,7 @@ function getDoc(req, res, next) {
         ops,
         ranges,
         pathname,
+        ttlInS: RedisManager.DOC_OPS_TTL,
       })
     }
   )
@@ -401,17 +381,24 @@ function updateProject(req, res, next) {
 
 function resyncProjectHistory(req, res, next) {
   const projectId = req.params.project_id
-  const { projectHistoryId, docs, files } = req.body
+  const { projectHistoryId, docs, files, historyRangesMigration } = req.body
 
   logger.debug(
     { projectId, docs, files },
     'queuing project history resync via http'
   )
+
+  const opts = {}
+  if (historyRangesMigration) {
+    opts.historyRangesMigration = historyRangesMigration
+  }
+
   HistoryManager.resyncProjectHistory(
     projectId,
     projectHistoryId,
     docs,
     files,
+    opts,
     error => {
       if (error) {
         return next(error)
@@ -455,4 +442,56 @@ function flushQueuedProjects(req, res, next) {
       res.send({ flushed })
     }
   })
+}
+
+/**
+ * Block a project from getting loaded in docupdater
+ *
+ * The project is blocked only if it's not already loaded in docupdater. The
+ * response indicates whether the project has been blocked or not.
+ */
+function blockProject(req, res, next) {
+  const projectId = req.params.project_id
+  RedisManager.blockProject(projectId, (err, blocked) => {
+    if (err) {
+      return next(err)
+    }
+    res.json({ blocked })
+  })
+}
+
+/**
+ * Unblock a project
+ */
+function unblockProject(req, res, next) {
+  const projectId = req.params.project_id
+  RedisManager.unblockProject(projectId, (err, wasBlocked) => {
+    if (err) {
+      return next(err)
+    }
+    res.json({ wasBlocked })
+  })
+}
+
+module.exports = {
+  getDoc,
+  peekDoc,
+  getProjectDocsAndFlushIfOld,
+  clearProjectState,
+  setDoc,
+  flushDocIfLoaded,
+  deleteDoc,
+  flushProject,
+  deleteProject,
+  deleteMultipleProjects,
+  acceptChanges,
+  resolveComment,
+  reopenComment,
+  deleteComment,
+  updateProject,
+  resyncProjectHistory,
+  flushAllProjects,
+  flushQueuedProjects,
+  blockProject,
+  unblockProject,
 }

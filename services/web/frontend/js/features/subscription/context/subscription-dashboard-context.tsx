@@ -19,8 +19,6 @@ import {
   PriceForDisplayData,
 } from '../../../../../types/subscription/plan'
 import { Institution } from '../../../../../types/institution'
-import { Institution as ManagedInstitution } from '../components/dashboard/managed-institutions'
-import { Publisher as ManagedPublisher } from '../components/dashboard/managed-publishers'
 import getMeta from '../../../utils/meta'
 import {
   formatCurrencyDefault,
@@ -32,6 +30,8 @@ import { SubscriptionDashModalIds } from '../../../../../types/subscription/dash
 import { debugConsole } from '@/utils/debugging'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
 import { formatCurrencyLocalized } from '@/shared/utils/currency'
+import { ManagedInstitution } from '../../../../../types/subscription/dashboard/managed-institution'
+import { Publisher } from '../../../../../types/subscription/dashboard/publisher'
 
 type SubscriptionDashboardContextValue = {
   groupPlanToChangeToCode: string
@@ -50,7 +50,7 @@ type SubscriptionDashboardContextValue = {
   managedGroupSubscriptions: ManagedGroupSubscription[]
   memberGroupSubscriptions: MemberGroupSubscription[]
   managedInstitutions: ManagedInstitution[]
-  managedPublishers: ManagedPublisher[]
+  managedPublishers: Publisher[]
   updateManagedInstitution: (institution: ManagedInstitution) => void
   modalIdShown?: SubscriptionDashModalIds
   personalSubscription?: RecurlySubscription | CustomSubscription
@@ -74,6 +74,7 @@ type SubscriptionDashboardContextValue = {
   setShowCancellation: React.Dispatch<React.SetStateAction<boolean>>
   leavingGroupId?: string
   setLeavingGroupId: React.Dispatch<React.SetStateAction<string | undefined>>
+  userCanExtendTrial: boolean
 }
 
 export const SubscriptionDashboardContext = createContext<
@@ -91,7 +92,7 @@ export function SubscriptionDashboardProvider({
   >()
   const [recurlyLoadError, setRecurlyLoadError] = useState(false)
   const [showCancellation, setShowCancellation] = useState(false)
-  const [plans, setPlans] = useState([])
+  const [plans, setPlans] = useState<Plan[]>([])
   const [queryingIndividualPlansData, setQueryingIndividualPlansData] =
     useState(true)
   const [planCodeToChangeTo, setPlanCodeToChangeTo] = useState<
@@ -113,19 +114,14 @@ export function SubscriptionDashboardProvider({
   const [leavingGroupId, setLeavingGroupId] = useState<string | undefined>()
 
   const plansWithoutDisplayPrice = getMeta('ol-plans')
-  const institutionMemberships: Institution[] = getMeta(
-    'ol-currentInstitutionsWithLicence'
-  )
+  const institutionMemberships = getMeta('ol-currentInstitutionsWithLicence')
   const personalSubscription = getMeta('ol-subscription')
-  const managedGroupSubscriptions: ManagedGroupSubscription[] = getMeta(
-    'ol-managedGroupSubscriptions'
+  const userCanExtendTrial = getMeta('ol-userCanExtendTrial')
+  const managedGroupSubscriptions = getMeta('ol-managedGroupSubscriptions')
+  const memberGroupSubscriptions = getMeta('ol-memberGroupSubscriptions')
+  const [managedInstitutions, setManagedInstitutions] = useState(
+    getMeta('ol-managedInstitutions')
   )
-  const memberGroupSubscriptions: MemberGroupSubscription[] = getMeta(
-    'ol-memberGroupSubscriptions'
-  )
-  const [managedInstitutions, setManagedInstitutions] = useState<
-    ManagedInstitution[]
-  >(getMeta('ol-managedInstitutions'))
   const managedPublishers = getMeta('ol-managedPublishers')
   const hasSubscription = getMeta('ol-hasSubscription')
   const recurlyApiKey = getMeta('ol-recurlyApiKey')
@@ -300,6 +296,7 @@ export function SubscriptionDashboardProvider({
       setShowCancellation,
       leavingGroupId,
       setLeavingGroupId,
+      userCanExtendTrial,
     }),
     [
       groupPlanToChangeToCode,
@@ -335,6 +332,7 @@ export function SubscriptionDashboardProvider({
       setShowCancellation,
       leavingGroupId,
       setLeavingGroupId,
+      userCanExtendTrial,
     ]
   )
 

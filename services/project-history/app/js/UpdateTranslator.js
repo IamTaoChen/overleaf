@@ -4,21 +4,20 @@ import _ from 'lodash'
 import Core from 'overleaf-editor-core'
 import * as Errors from './Errors.js'
 import * as OperationsCompressor from './OperationsCompressor.js'
+import { isInsert, isRetain, isDelete, isComment } from './Utils.js'
 
 /**
  * @typedef {import('./types').AddDocUpdate} AddDocUpdate
  * @typedef {import('./types').AddFileUpdate} AddFileUpdate
- * @typedef {import('./types').CommentOp} CommentOp
  * @typedef {import('./types').DeleteCommentUpdate} DeleteCommentUpdate
- * @typedef {import('./types').DeleteOp} DeleteOp
- * @typedef {import('./types').InsertOp} InsertOp
- * @typedef {import('./types').RetainOp} RetainOp
  * @typedef {import('./types').Op} Op
  * @typedef {import('./types').RawScanOp} RawScanOp
  * @typedef {import('./types').RenameUpdate} RenameUpdate
  * @typedef {import('./types').TextUpdate} TextUpdate
+ * @typedef {import('./types').TrackingDirective} TrackingDirective
  * @typedef {import('./types').TrackingProps} TrackingProps
  * @typedef {import('./types').SetCommentStateUpdate} SetCommentStateUpdate
+ * @typedef {import('./types').SetFileMetadataOperation} SetFileMetadataOperation
  * @typedef {import('./types').Update} Update
  * @typedef {import('./types').UpdateWithBlob} UpdateWithBlob
  */
@@ -57,14 +56,19 @@ function _convertToChange(projectId, updateWithBlob) {
     ]
     projectVersion = update.version
   } else if (isAddUpdate(update)) {
-    operations = [
-      {
-        pathname: _convertPathname(update.pathname),
-        file: {
-          hash: updateWithBlob.blobHash,
-        },
+    const op = {
+      pathname: _convertPathname(update.pathname),
+      file: {
+        hash: updateWithBlob.blobHashes.file,
       },
-    ]
+    }
+    if (_isAddDocUpdate(update)) {
+      op.file.rangesHash = updateWithBlob.blobHashes.ranges
+    }
+    if (_isAddFileUpdate(update)) {
+      op.file.metadata = update.metadata
+    }
+    operations = [op]
     projectVersion = update.version
   } else if (isTextUpdate(update)) {
     const docLength = update.meta.history_doc_length ?? update.meta.doc_length
@@ -87,6 +91,13 @@ function _convertToChange(projectId, updateWithBlob) {
         pathname: _convertPathname(update.pathname),
         commentId: update.commentId,
         resolved: update.resolved,
+      },
+    ]
+  } else if (isSetFileMetadataOperation(update)) {
+    operations = [
+      {
+        pathname: _convertPathname(update.pathname),
+        metadata: update.metadata,
       },
     ]
   } else if (isDeleteCommentUpdate(update)) {
@@ -215,6 +226,14 @@ export function isDeleteCommentUpdate(update) {
   return 'deleteComment' in update
 }
 
+/**
+ * @param {Update} update
+ * @returns {update is SetFileMetadataOperation}
+ */
+export function isSetFileMetadataOperation(update) {
+  return 'metadata' in update
+}
+
 export function _convertPathname(pathname) {
   // Strip leading /
   pathname = pathname.replace(/^\//, '')
@@ -280,16 +299,16 @@ class OperationsBuilder {
       this.pushTextOperation()
 
       // Add a comment operation
-      this.operations.push({
+      const commentLength = op.hlen ?? op.c.length
+      const commentOp = {
         pathname: this.pathname,
         commentId: op.t,
-        ranges: [
-          {
-            pos,
-            length: op.hlen ?? op.c.length,
-          },
-        ],
-      })
+        ranges: commentLength > 0 ? [{ pos, length: commentLength }] : [],
+      }
+      if ('resolved' in op) {
+        commentOp.resolved = op.resolved
+      }
+      this.operations.push(commentOp)
       return
     }
 
@@ -357,7 +376,7 @@ class OperationsBuilder {
       for (const change of changes) {
         if (change.offset > offset) {
           // Handle the portion before the tracked change
-          if (update.meta.tc != null && op.u == null) {
+          if (update.meta.tc != null) {
             // This is a tracked delete
             this.retain(change.offset - offset, {
               tracking: {
@@ -385,7 +404,7 @@ class OperationsBuilder {
       }
       if (offset < op.d.length) {
         // Handle the portion after the last tracked change
-        if (update.meta.tc != null && op.u == null) {
+        if (update.meta.tc != null) {
           // This is a tracked delete
           this.retain(op.d.length - offset, {
             tracking: {
@@ -405,7 +424,7 @@ class OperationsBuilder {
   /**
    * @param {number} length
    * @param {object} opts
-   * @param {TrackingProps} [opts.tracking]
+   * @param {TrackingDirective} [opts.tracking]
    */
   retain(length, opts = {}) {
     if (opts.tracking) {
@@ -460,36 +479,4 @@ class OperationsBuilder {
     this.pushTextOperation()
     return this.operations
   }
-}
-
-/**
- * @param {Op} op
- * @returns {op is InsertOp}
- */
-function isInsert(op) {
-  return 'i' in op && op.i != null
-}
-
-/**
- * @param {Op} op
- * @returns {op is RetainOp}
- */
-function isRetain(op) {
-  return 'r' in op && op.r != null
-}
-
-/**
- * @param {Op} op
- * @returns {op is DeleteOp}
- */
-function isDelete(op) {
-  return 'd' in op && op.d != null
-}
-
-/**
- * @param {Op} op
- * @returns {op is CommentOp}
- */
-function isComment(op) {
-  return 'c' in op && op.c != null && 't' in op && op.t != null
 }

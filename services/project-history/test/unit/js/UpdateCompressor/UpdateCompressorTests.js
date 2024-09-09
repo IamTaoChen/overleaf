@@ -199,7 +199,11 @@ describe('UpdateCompressor', function () {
               { p: 22, d: 'apple' }, // doc_length doesn't change
               { p: 12, i: 'melon', u: true }, // doc_length += 5
               { p: 18, i: 'banana', u: true, trackedDeleteRejection: true }, // doc_length doesn't change
-              { p: 8, d: 'pineapple', u: true }, // doc_length -= 9
+              {
+                p: 8,
+                d: 'pineapple',
+                trackedChanges: [{ type: 'insert', offset: 0, length: 9 }],
+              }, // doc_length -= 9
               { p: 11, i: 'fruit salad' },
             ],
             meta: { ...meta, doc_length: 20, history_doc_length: 30 },
@@ -228,7 +232,11 @@ describe('UpdateCompressor', function () {
           v: 42,
         },
         {
-          op: { p: 8, d: 'pineapple', u: true },
+          op: {
+            p: 8,
+            d: 'pineapple',
+            trackedChanges: [{ type: 'insert', offset: 0, length: 9 }],
+          },
           meta: { ...meta, doc_length: 41 },
           v: 42,
         },
@@ -809,6 +817,57 @@ describe('UpdateCompressor', function () {
           },
         ])
       })
+
+      it('should not merge inserts inside different comments', function () {
+        expect(
+          this.UpdateCompressor.compressUpdates([
+            {
+              op: { p: 3, i: 'foo', hpos: 13, commentIds: ['comment-id-1'] },
+              meta: { ts: this.ts1, user_id: this.user_id },
+              v: 42,
+            },
+            {
+              op: { p: 6, i: 'bar', hpos: 16 },
+              meta: { ts: this.ts2, user_id: this.user_id },
+              v: 43,
+            },
+          ])
+        ).to.deep.equal([
+          {
+            op: { p: 3, i: 'foo', hpos: 13, commentIds: ['comment-id-1'] },
+            meta: { ts: this.ts1, user_id: this.user_id },
+            v: 42,
+          },
+          {
+            op: { p: 6, i: 'bar', hpos: 16 },
+            meta: { ts: this.ts2, user_id: this.user_id },
+            v: 43,
+          },
+        ])
+      })
+
+      it('should propagate the commentIds property', function () {
+        expect(
+          this.UpdateCompressor.compressUpdates([
+            {
+              op: { p: 3, i: 'foo', hpos: 13, commentIds: ['comment-id-1'] },
+              meta: { ts: this.ts1, user_id: this.user_id },
+              v: 42,
+            },
+            {
+              op: { p: 6, i: 'bar', hpos: 16, commentIds: ['comment-id-1'] },
+              meta: { ts: this.ts2, user_id: this.user_id },
+              v: 43,
+            },
+          ])
+        ).to.deep.equal([
+          {
+            op: { p: 3, i: 'foobar', hpos: 13, commentIds: ['comment-id-1'] },
+            meta: { ts: this.ts1, user_id: this.user_id },
+            v: 43,
+          },
+        ])
+      })
     })
 
     describe('delete - delete', function () {
@@ -1166,7 +1225,7 @@ describe('UpdateCompressor', function () {
         ).to.deep.equal([])
       })
 
-      it('should preserver history metadata', function () {
+      it('should preserve history metadata', function () {
         expect(
           this.UpdateCompressor.compressUpdates([
             {
@@ -1183,6 +1242,7 @@ describe('UpdateCompressor', function () {
                 p: 3,
                 i: 'one 2 three four five six seven eight',
                 hpos: 13,
+                commentIds: ['comment-1'],
               },
               meta: { ts: this.ts2, user_id: this.user_id, doc_length: 100 },
               v: 43,
@@ -1195,7 +1255,7 @@ describe('UpdateCompressor', function () {
             v: 43,
           },
           {
-            op: { p: 7, i: '2', hpos: 17 },
+            op: { p: 7, i: '2', hpos: 17, commentIds: ['comment-1'] },
             meta: { ts: this.ts1, user_id: this.user_id, doc_length: 97 },
             v: 43,
           },
