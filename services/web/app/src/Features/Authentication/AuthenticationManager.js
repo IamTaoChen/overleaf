@@ -20,6 +20,7 @@ const logger = require('@overleaf/logger')
 const DiffHelper = require('../Helpers/DiffHelper')
 const Metrics = require('@overleaf/metrics')
 
+const UserGetter = require("../User/UserGetter")
 const BCRYPT_ROUNDS = Settings.security.bcryptRounds || 12
 const BCRYPT_MINOR_VERSION = Settings.security.bcryptMinorVersion || 'a'
 const MAX_SIMILARITY = 0.7
@@ -418,6 +419,71 @@ const AuthenticationManager = {
       }
     }
   },
+  // Generate a random password for SSO user
+  createPwdForSSOUser() {
+    let pwdSpace = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz0123456789!@#$%^&*()[]<>";
+    let pwdSpaceLen = pwdSpace.length;
+    let result = "";
+    for (i = 0; i < 32; i++) {
+        result += pwdSpace.charAt(Math.floor(Math.random() * pwdSpaceLen));
+    }
+    return result;
+},
+// ####################################################################################
+// Common SSO Code
+// ####################################################################################
+createUserIfNotExist(oauth_user, callback) {
+    // if `oauth_user` has email info
+    const oauth_email_exist = process.env.OVERLEAF_OIDC_USER_PROFILE_CONTAIN_EMAIL || 'false';
+    let oauth_new_user_email = "";
+
+    if (oauth_email_exist === 'false') {
+        oauth_new_user_email = oauth_user[process.env.OVERLEAF_OIDC_USER_EMAIL_NAME_IDENTIFIER]
+            + "@" + process.env.OVERLEAF_OIDC_USER_EMAIL_DOMAIN
+    }
+    else {
+        oauth_new_user_email = oauth_user[process.env.OVERLEAF_OIDC_USER_EMAIL_NAME_IDENTIFIER];
+    }
+
+    const query = {
+        email: oauth_new_user_email
+    };
+    let parsedEmail = EmailHelper.parseEmail(query.email)
+    UserGetter.getUserByAnyEmail(parsedEmail, (error, user) => {
+        if ((!user || !user.hashedPassword)) {
+            // get passwd
+            let pass = this.createPwdForSSOUser();
+            const userRegHand = require('../User/UserRegistrationHandler.js')
+            userRegHand.registerNewUser({
+                email: query.email,
+                first_name: oauth_user.name,
+                last_name: "",
+                password: pass
+            },
+                function (error, user) {
+                    if (error) {
+                        return callback(error, null);
+                    }
+                    user.admin = false
+                    user.emails[0].confirmedAt = Date.now()
+                    user.save()
+
+                    UserGetter.getUserByAnyEmail(EmailHelper.parseEmail(query.email), (error, user) => {
+                        if (error) {
+                            return callback(error, null);
+                        }
+                        if (user && user.hashedPassword) {
+                            return callback(null, user);
+                        } else {
+                            return callback("User null or user no hashed pwd error", null);
+                        }
+                    })
+                })
+        } else {
+            return callback(null, user);
+        }
+    });
+},
 
   getMessageForInvalidPasswordError(error, req) {
     const errorCode = error?.info?.code
@@ -473,6 +539,8 @@ module.exports = {
     'user',
     'isPasswordReused',
   ]),
+  createPwdForSSOUser: AuthenticationManager.createPwdForSSOUser,
+  createUserIfNotExist: AuthenticationManager.createUserIfNotExist,
   setUserPassword: callbackify(AuthenticationManager.setUserPassword),
   checkRounds: callbackify(AuthenticationManager.checkRounds),
   hashPassword: callbackify(AuthenticationManager.hashPassword),
